@@ -674,7 +674,7 @@ export default function App() {
                       <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
                         {p.categoria.split(" ").slice(1).join(" ")}
                         {p.ubicacion&&<span style={{color:"#60a5fa"}}> · 📍{p.ubicacion}</span>}
-                        {p.costo>0&&<span style={{color:C.accent}}> · ${(p.cantidad*p.costo).toFixed(2)} (${p.costo}/{p.unidad})</span>}
+                        
                         {cad&&<span style={{color:"#a78bfa"}}> · ⚠️ Cad en {dias}d</span>}
                       </div>
                     </div>
