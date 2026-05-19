@@ -337,7 +337,8 @@ function productoToDb(p) {
     cantidad: p.cantidad, unidad: p.unidad, minimo: p.minimo, maximo: p.maximo||0,
     optimo: p.optimo||0, cant_comprar: p.cantComprar||0, proveedor: p.proveedor||"",
     costo: p.costo||0, ubicacion: p.ubicacion||"", caducidad: p.caducidad||"",
-    emoji: p.emoji||"📦", es_variable: p.esVariable||false
+    emoji: p.emoji||"📦", es_variable: p.esVariable||false,
+    presentacion: p.presentacion||"", costo_presentacion: p.costoPresentacion||0
   };
 }
 function dbToProducto(r) {
@@ -346,7 +347,8 @@ function dbToProducto(r) {
     cantidad: r.cantidad, unidad: r.unidad, minimo: r.minimo, maximo: r.maximo||0,
     optimo: r.optimo||0, cantComprar: r.cant_comprar||0, proveedor: r.proveedor||"",
     costo: r.costo||0, ubicacion: r.ubicacion||"", caducidad: r.caducidad||"",
-    emoji: r.emoji||"📦", esVariable: r.es_variable||false
+    emoji: r.emoji||"📦", esVariable: r.es_variable||false,
+    presentacion: r.presentacion||"", costoPresentacion: r.costo_presentacion||0
   };
 }
 function movimientoToDb(m) {
@@ -376,7 +378,7 @@ const statusInfo = p => {
 const fmt = iso => new Date(iso).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 const diasParaCaducar = fecha => fecha ? Math.ceil((new Date(fecha) - new Date()) / 86400000) : null;
 
-const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", cantidad:"", unidad:"pzas", minimo:"", maximo:"", optimo:"", proveedor:"", costo:"", ubicacion:"", caducidad:"", emoji:"📦", esVariable:false };
+const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", cantidad:"", unidad:"pzas", minimo:"", maximo:"", optimo:"", proveedor:"", costo:"", ubicacion:"", caducidad:"", emoji:"📦", esVariable:false, presentacion:"", costoPresentacion:"" };
 
 export default function App() {
   const [tab, setTab] = useState("inventario");
@@ -481,7 +483,7 @@ export default function App() {
   async function guardarProducto() {
     if (!formP.nombre || formP.cantidad==="" || formP.minimo==="") return;
     const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
-    const nuevo = {...formP, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar};
+    const nuevo = {...formP, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar, presentacion:formP.presentacion||"", costoPresentacion:+formP.costoPresentacion||0};
     guardar();
     if (editando) {
       const nueva = productos.map(p=>p.id===editando?{...p,...nuevo}:p);
@@ -572,7 +574,18 @@ export default function App() {
   const bajoStock = productos.filter(p=>p.cantidad<=p.minimo).length;
   const totalMermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
   const proxCaducar = productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=7&&d>=0;}).length;
-  const gastoEstimado = productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).reduce((a,p)=>a+(p.cantComprar||0)*(p.costo||0),0);
+  const calcPresentaciones = (p) => {
+    if (!p.presentacion || !p.costoPresentacion) return null;
+    const match = p.presentacion.match(/([\d.]+)/);
+    if (!match) return null;
+    const unidadesPorPres = parseFloat(match[1]);
+    const pres = Math.ceil((p.cantComprar||0) / unidadesPorPres);
+    return { pres, costo: pres * p.costoPresentacion, unidadesPorPres };
+  };
+  const gastoEstimado = productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).reduce((a,p)=>{
+    const cp = calcPresentaciones(p);
+    return a + (cp ? cp.costo : (p.cantComprar||0)*(p.costo||0));
+  },0);
 
   const C={bg:"#0f1117",card:"#1a1d27",border:"#2a2d3a",accent:"#6ee7b7",text:"#e8eaf0",muted:"#8b90a0",warn:"#f59e0b",danger:"#ef4444",success:"#22c55e",info:"#60a5fa"};
   const inp={width:"100%",background:"#12151e",border:`1px solid ${C.border}`,borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box"};
@@ -695,7 +708,7 @@ export default function App() {
                     <div style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"6px",padding:"3px 8px",fontSize:"10px",color:s.color,fontWeight:"600",minWidth:"70px",textAlign:"center"}}>{s.icon} {s.label}</div>
                     <div style={{display:"flex",gap:"4px"}}>
                       <button className="ti" onClick={()=>{setFormM({productoId:p.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>📉</button>
-                      <button className="ti" onClick={()=>{setEditando(p.id);setFormP({...p,cantidad:String(p.cantidad),minimo:String(p.minimo),maximo:String(p.maximo||""),optimo:String(p.optimo||""),costo:String(p.costo||"")});setModal("producto");}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
+                      <button className="ti" onClick={()=>{setEditando(p.id);setFormP({...p,cantidad:String(p.cantidad),minimo:String(p.minimo),maximo:String(p.maximo||""),optimo:String(p.optimo||""),costo:String(p.costo||""),presentacion:p.presentacion||"",costoPresentacion:String(p.costoPresentacion||"")});setModal("producto");}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
                       <button className="ti" onClick={()=>eliminarProducto(p.id)} style={{background:"#ef444420",border:"none",color:C.danger,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
                     </div>
                   </div>
@@ -761,7 +774,9 @@ export default function App() {
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:"13px",fontWeight:"700",color:C.accent,fontFamily:"'DM Mono',monospace"}}>Pedir: {p.cantComprar||"?"} {p.unidad}</div>
                       <div style={{fontSize:"10px",color:C.muted}}>Disponible: <span style={{color:C.warn,fontWeight:"600"}}>{p.cantidad} {p.unidad}</span></div>
-                      {p.costo>0&&<div style={{fontSize:"10px",color:C.muted}}>${((p.cantComprar||0)*p.costo).toFixed(2)}</div>}
+                      {p.presentacion&&(()=>{const cp=calcPresentaciones(p);return cp?<div style={{fontSize:"10px",color:"#a78bfa",fontWeight:"600"}}>📦 {cp.pres} {p.presentacion} = ${cp.costo.toFixed(2)}</div>:null;})()}
+                      {!p.presentacion&&p.costo>0&&<div style={{fontSize:"10px",color:C.muted}}>${((p.cantComprar||0)*p.costo).toFixed(2)} · <span style={{color:C.accent}}>${p.costo}/{p.unidad}</span></div>}
+                      {p.costo>0&&!p.presentacion&&<div style={{fontSize:"9px",color:C.muted}}>${p.costo}/{p.unidad}</div>}
                     </div>
                   </div>
                 ))}
@@ -954,6 +969,10 @@ export default function App() {
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
                   <div><label style={lbl}>Costo por unidad ($)</label><input type="number" min="0" placeholder="0.00" value={formP.costo} onChange={e=>setFormP(f=>({...f,costo:e.target.value}))} style={inp}/></div>
                   <div><label style={lbl}>Fecha de caducidad</label><input type="date" value={formP.caducidad} onChange={e=>setFormP(f=>({...f,caducidad:e.target.value}))} style={inp}/></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Presentación de venta</label><input placeholder="Ej. paquete de 6 L" value={formP.presentacion||""} onChange={e=>setFormP(f=>({...f,presentacion:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Costo por presentación ($)</label><input type="number" min="0" placeholder="0.00" value={formP.costoPresentacion||""} onChange={e=>setFormP(f=>({...f,costoPresentacion:e.target.value}))} style={inp}/></div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
                   <input type="checkbox" id="esVar" checked={formP.esVariable||false} onChange={e=>setFormP(f=>({...f,esVariable:e.target.checked}))} style={{width:"16px",height:"16px",accentColor:C.accent}}/>
