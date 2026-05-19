@@ -478,7 +478,7 @@ export default function App() {
 
   async function guardarProducto() {
     if (!formP.nombre || formP.cantidad==="" || formP.minimo==="") return;
-    const cantComprar = formP.optimo && formP.maximo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
+    const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
     const nuevo = {...formP, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar};
     guardar();
     if (editando) {
@@ -550,7 +550,7 @@ export default function App() {
       txt+=`• ${p.emoji} ${p.nombre} | ${p.cantidad}/${p.optimo||"?"} ${p.unidad} | Mín:${p.minimo} Máx:${p.maximo} | Comprar:${p.cantComprar||0} | ${p.categoria} | ${p.proveedor||"Sin proveedor"} | ${p.ubicacion||"Sin ubicación"} | Costo:$${p.costo||0} | ${s.label}${p.caducidad?" | Cad:"+p.caducidad:""}\n`;
     });
     txt+=`\n--- PEDIDOS URGENTES ---\n`;
-    productos.filter(p=>p.cantidad<=p.minimo).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
+    productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
     txt+=`\n--- MERMAS (${mermas.length}) ---\n`;
     mermas.slice(0,100).forEach(m=>{txt+=`${fmt(m.fecha)} | ${m.nombre} | ${m.cantidad} ${m.unidad} | ${m.motivo} | $${m.costoEstimado?.toFixed(2)||0}\n`;});
     txt+=`\n--- HISTORIAL (${historial.length}) ---\n`;
@@ -570,7 +570,7 @@ export default function App() {
   const bajoStock = productos.filter(p=>p.cantidad<=p.minimo).length;
   const totalMermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
   const proxCaducar = productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=7&&d>=0;}).length;
-  const gastoEstimado = productos.filter(p=>p.cantidad<=p.minimo).reduce((a,p)=>a+(p.cantComprar||0)*(p.costo||0),0);
+  const gastoEstimado = productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).reduce((a,p)=>a+(p.cantComprar||0)*(p.costo||0),0);
 
   const C={bg:"#0f1117",card:"#1a1d27",border:"#2a2d3a",accent:"#6ee7b7",text:"#e8eaf0",muted:"#8b90a0",warn:"#f59e0b",danger:"#ef4444",success:"#22c55e",info:"#60a5fa"};
   const inp={width:"100%",background:"#12151e",border:`1px solid ${C.border}`,borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box"};
@@ -723,7 +723,7 @@ export default function App() {
 
           {/* Pedidos por proveedor */}
           {CATEGORIAS.map(cat=>{
-            const items=productos.filter(p=>p.categoria===cat&&p.cantidad<=p.minimo);
+            const items=productos.filter(p=>p.categoria===cat&&p.optimo>0&&p.cantidad<p.optimo);
             if(!items.length)return null;
             return(
               <div key={cat} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
@@ -747,7 +747,7 @@ export default function App() {
             );
           })}
 
-          {productos.filter(p=>p.cantidad<=p.minimo).length===0&&(
+          {productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).length===0&&(
             <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
               <div style={{fontSize:"36px",marginBottom:"10px"}}>✅</div>
               Todo el inventario está en niveles óptimos
