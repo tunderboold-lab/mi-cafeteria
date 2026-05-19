@@ -397,6 +397,8 @@ export default function App() {
   const [formProv, setFormProv] = useState({ nombre:"", contacto:"", telefono:"", diasEntrega:"" });
   const [ajusteItem, setAjusteItem] = useState(null);
   const [ajusteDelta, setAjusteDelta] = useState("");
+  const [pinOk, setPinOk] = useState(false);
+  const [pinInput, setPinInput] = useState("");
   const videoRef = useRef(null);
 
   useEffect(() => { cargar(); }, []);
@@ -604,7 +606,7 @@ export default function App() {
         {/* TABS */}
         <div style={{display:"flex",gap:"0",borderTop:`1px solid ${C.border}`,overflowX:"auto"}}>
           {TABS.map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"none",border:"none",borderBottom:tab===t.id?`2px solid ${C.accent}`:"2px solid transparent",color:tab===t.id?C.accent:C.muted,padding:"9px 14px",cursor:"pointer",fontFamily:"inherit",fontWeight:tab===t.id?"600":"400",fontSize:"12px",display:"flex",alignItems:"center",gap:"5px",marginBottom:"-1px",whiteSpace:"nowrap"}}>
+            <button key={t.id} onClick={()=>{setTab(t.id);if(t.id!=="pedidos")setPinOk(false);}} style={{background:"none",border:"none",borderBottom:tab===t.id?`2px solid ${C.accent}`:"2px solid transparent",color:tab===t.id?C.accent:C.muted,padding:"9px 14px",cursor:"pointer",fontFamily:"inherit",fontWeight:tab===t.id?"600":"400",fontSize:"12px",display:"flex",alignItems:"center",gap:"5px",marginBottom:"-1px",whiteSpace:"nowrap"}}>
               {t.icon}{t.label}
             </button>
           ))}
@@ -672,7 +674,7 @@ export default function App() {
                       <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
                         {p.categoria.split(" ").slice(1).join(" ")}
                         {p.ubicacion&&<span style={{color:"#60a5fa"}}> · 📍{p.ubicacion}</span>}
-                        {p.costo>0&&<span style={{color:C.accent}}> · ${p.costo}/{p.unidad}</span>}
+                        {p.costo>0&&<span style={{color:C.accent}}> · ${(p.cantidad*p.costo).toFixed(2)} (${p.costo}/{p.unidad})</span>}
                         {cad&&<span style={{color:"#a78bfa"}}> · ⚠️ Cad en {dias}d</span>}
                       </div>
                     </div>
@@ -707,6 +709,25 @@ export default function App() {
       {/* ===== PEDIDOS ===== */}
       {tab==="pedidos"&&(
         <div style={{padding:"0 16px 24px"}}>
+          {!pinOk ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",gap:"16px"}}>
+              <div style={{fontSize:"36px"}}>🔐</div>
+              <div style={{fontWeight:"700",fontSize:"16px",color:C.text}}>Acceso restringido</div>
+              <div style={{fontSize:"12px",color:C.muted}}>Solo el administrador puede ver los pedidos</div>
+              <input
+                type="password"
+                placeholder="Ingresa tu PIN..."
+                value={pinInput}
+                onChange={e=>setPinInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"){if(pinInput==="2404"){setPinOk(true);setPinInput("");}else{setPinInput("");alert("PIN incorrecto");}}}
+                }
+                style={{...inp,textAlign:"center",letterSpacing:"8px",fontSize:"20px",maxWidth:"200px"}}
+                autoFocus
+              />
+              <button onClick={()=>{if(pinInput==="2404"){setPinOk(true);setPinInput("");}else{setPinInput("");alert("PIN incorrecto");}}} style={{...btnP}}>Entrar</button>
+            </div>
+          ) : (
+          <div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
             <div>
               <div style={{fontWeight:"700",fontSize:"15px"}}>Lista de Pedidos</div>
@@ -722,12 +743,12 @@ export default function App() {
           </div>
 
           {/* Pedidos por proveedor */}
-          {CATEGORIAS.map(cat=>{
-            const items=productos.filter(p=>p.categoria===cat&&p.optimo>0&&p.cantidad<p.optimo);
+          {[...new Set(productos.filter(p=>p.optimo>0&&p.cantidad<p.optimo).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
+            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.optimo>0&&p.cantidad<p.optimo);
             if(!items.length)return null;
             return(
-              <div key={cat} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
-                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px",color:C.accent}}>{cat}</div>
+              <div key={prov} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px",color:C.accent}}>🏪 {prov}</div>
                 {items.map(p=>(
                   <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
                     <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
@@ -739,6 +760,7 @@ export default function App() {
                     </div>
                     <div style={{textAlign:"right"}}>
                       <div style={{fontSize:"13px",fontWeight:"700",color:C.accent,fontFamily:"'DM Mono',monospace"}}>Pedir: {p.cantComprar||"?"} {p.unidad}</div>
+                      <div style={{fontSize:"10px",color:C.muted}}>Disponible: <span style={{color:C.warn,fontWeight:"600"}}>{p.cantidad} {p.unidad}</span></div>
                       {p.costo>0&&<div style={{fontSize:"10px",color:C.muted}}>${((p.cantComprar||0)*p.costo).toFixed(2)}</div>}
                     </div>
                   </div>
@@ -769,6 +791,8 @@ export default function App() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
           )}
         </div>
       )}
