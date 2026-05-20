@@ -503,7 +503,7 @@ export default function App() {
   }
 
   async function guardarProducto() {
-    if (!formP.nombre || formP.cantidad==="" || formP.minimo==="") return;
+    if (!formP.nombre) return;
     const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
     const nuevo = {...formP, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar, presentacion:formP.presentacion||"", costoPresentacion:+formP.costoPresentacion||0};
     guardar();
