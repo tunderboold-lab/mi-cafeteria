@@ -535,7 +535,8 @@ export default function App() {
         : (freshDataRef.current?.proveedor || "");
       const nueva = productos.map(p=>p.id===editando?{...p,...fp,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
       setProductos(nueva);
-      await supabase.from("inventario").update(updateData).eq("id",editando);
+      const {error} = await supabase.from("inventario").update(updateData).eq("id",editando);
+      if(error) alert("Error al guardar: " + JSON.stringify(error));
     } else {
       const id = Date.now();
       const prod = {...fp, id, cantidad:+fp.cantidad, minimo:+fp.minimo, maximo:+fp.maximo||0, optimo:+fp.optimo||0, costo:+fp.costo||0, cantComprar};
