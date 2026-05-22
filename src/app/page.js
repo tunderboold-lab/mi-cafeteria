@@ -735,8 +735,8 @@ export default function App() {
   const {data} = await supabase.from("inventario").select("*").eq("id",p.id).single();
   const fresh = data ? dbToProducto(data) : p;
   setFormP({...fresh,cantidad:String(fresh.cantidad),minimo:String(fresh.minimo),maximo:String(fresh.maximo||""),optimo:String(fresh.optimo||""),costo:String(fresh.costo||""),presentacion:fresh.presentacion||"",costoPresentacion:String(fresh.costoPresentacion||"")});
-})();
-setModal("producto");}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
+  setModal("producto");
+})();}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
                       <button className="ti" onClick={()=>eliminarProducto(p.id)} style={{background:"#ef444420",border:"none",color:C.danger,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
                     </div>
                   </div>
