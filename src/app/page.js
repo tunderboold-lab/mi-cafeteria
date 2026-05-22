@@ -506,8 +506,24 @@ export default function App() {
   async function guardarProducto() {
     if (!formP.nombre) return;
     const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
-    const proveedorFinal = formP.proveedor || (freshDataRef.current?.proveedor) || "";
-    const nuevo = {...formP, proveedor:proveedorFinal, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar, presentacion:formP.presentacion||"", costoPresentacion:+formP.costoPresentacion||0};
+    // Use fresh data ref as base, then apply form changes on top
+    const base = freshDataRef.current || {};
+    const proveedorFinal = formP.proveedor !== undefined && formP.proveedor !== "" 
+      ? formP.proveedor 
+      : (base.proveedor || "");
+    const nuevo = {
+      ...base,
+      ...formP,
+      proveedor: proveedorFinal,
+      cantidad: +formP.cantidad,
+      minimo: +formP.minimo,
+      maximo: +formP.maximo || 0,
+      optimo: +formP.optimo || 0,
+      costo: +formP.costo || 0,
+      cantComprar,
+      presentacion: formP.presentacion || "",
+      costoPresentacion: +formP.costoPresentacion || 0
+    };
     guardar();
     if (editando) {
       const nueva = productos.map(p=>p.id===editando?{...p,...nuevo}:p);
