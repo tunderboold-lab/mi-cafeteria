@@ -416,7 +416,8 @@ export default function App() {
   const [guardando, setGuardando] = useState(false);
   const [copiado, setCopiado] = useState(false);
   const [scanActivo, setScanActivo] = useState(false);
-  const [formP, setFormP] = useState(FORM_VACIO);
+  const [formP, _setFormP] = useState(FORM_VACIO);
+  const setFormP = (val) => { const v = typeof val === 'function' ? val(formPRef.current) : val; formPRef.current = v; _setFormP(v); };
   const [formM, setFormM] = useState({ productoId:"", cantidad:"", motivo:"Caducidad", notas:"" });
   const [formProv, setFormProv] = useState({ nombre:"", contacto:"", telefono:"", diasEntrega:"" });
   const [ajusteItem, setAjusteItem] = useState(null);
@@ -425,6 +426,7 @@ export default function App() {
   const [pinInput, setPinInput] = useState("");
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
+  const formPRef = useRef(FORM_VACIO);
 
   useEffect(() => { cargar(); }, []);
 
@@ -504,39 +506,39 @@ export default function App() {
   }
 
   async function guardarProducto() {
-    if (!formP.nombre) return;
-    const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
+    const fp = formPRef.current;
+    if (!fp.nombre) return;
+    const cantComprar = fp.optimo ? Math.max(0, +fp.optimo - +fp.cantidad) : 0;
     guardar();
     if (editando) {
-      // Update each field individually to avoid overwriting proveedor
       const updateData = {
-        nombre: formP.nombre,
-        barcode: formP.barcode || "",
-        categoria: formP.categoria,
-        cantidad: +formP.cantidad,
-        unidad: formP.unidad,
-        minimo: +formP.minimo,
-        maximo: +formP.maximo || 0,
-        optimo: +formP.optimo || 0,
+        nombre: fp.nombre,
+        barcode: fp.barcode || "",
+        categoria: fp.categoria,
+        cantidad: +fp.cantidad,
+        unidad: fp.unidad,
+        minimo: +fp.minimo,
+        maximo: +fp.maximo || 0,
+        optimo: +fp.optimo || 0,
         cant_comprar: cantComprar,
-        costo: +formP.costo || 0,
-        ubicacion: formP.ubicacion || "",
-        caducidad: formP.caducidad || "",
-        emoji: formP.emoji || "📦",
-        es_variable: formP.esVariable || false,
-        presentacion: formP.presentacion || "",
-        costo_presentacion: +formP.costoPresentacion || 0,
+        costo: +fp.costo || 0,
+        ubicacion: fp.ubicacion || "",
+        caducidad: fp.caducidad || "",
+        emoji: fp.emoji || "📦",
+        es_variable: fp.esVariable || false,
+        presentacion: fp.presentacion || "",
+        costo_presentacion: +fp.costoPresentacion || 0,
       };
-      // Only update proveedor if it has a value
-      if (formP.proveedor && formP.proveedor.trim() !== "") {
-        updateData.proveedor = formP.proveedor;
-      }
-      const nueva = productos.map(p=>p.id===editando?{...p,...formP,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
+      // Always include proveedor - use form value OR keep existing from freshDataRef
+      updateData.proveedor = (fp.proveedor && fp.proveedor.trim() !== "") 
+        ? fp.proveedor 
+        : (freshDataRef.current?.proveedor || "");
+      const nueva = productos.map(p=>p.id===editando?{...p,...fp,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
       setProductos(nueva);
       await supabase.from("inventario").update(updateData).eq("id",editando);
     } else {
       const id = Date.now();
-      const prod = {...formP, id, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar};
+      const prod = {...fp, id, cantidad:+fp.cantidad, minimo:+fp.minimo, maximo:+fp.maximo||0, optimo:+fp.optimo||0, costo:+fp.costo||0, cantComprar};
       setProductos(p=>[...p, prod]);
       await supabase.from("inventario").insert(productoToDb(prod));
     }
