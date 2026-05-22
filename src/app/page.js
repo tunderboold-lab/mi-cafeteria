@@ -424,6 +424,7 @@ export default function App() {
   const [pinOk, setPinOk] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const videoRef = useRef(null);
+  const freshDataRef = useRef(null);
 
   useEffect(() => { cargar(); }, []);
 
@@ -505,7 +506,8 @@ export default function App() {
   async function guardarProducto() {
     if (!formP.nombre) return;
     const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
-    const nuevo = {...formP, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar, presentacion:formP.presentacion||"", costoPresentacion:+formP.costoPresentacion||0};
+    const proveedorFinal = formP.proveedor || (freshDataRef.current?.proveedor) || "";
+    const nuevo = {...formP, proveedor:proveedorFinal, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar, presentacion:formP.presentacion||"", costoPresentacion:+formP.costoPresentacion||0};
     guardar();
     if (editando) {
       const nueva = productos.map(p=>p.id===editando?{...p,...nuevo}:p);
@@ -734,6 +736,7 @@ export default function App() {
 (async()=>{
   const {data} = await supabase.from("inventario").select("*").eq("id",p.id).single();
   const fresh = data ? dbToProducto(data) : p;
+  freshDataRef.current = fresh;
   setFormP({...fresh,cantidad:String(fresh.cantidad),minimo:String(fresh.minimo),maximo:String(fresh.maximo||""),optimo:String(fresh.optimo||""),costo:String(fresh.costo||""),presentacion:fresh.presentacion||"",costoPresentacion:String(fresh.costoPresentacion||"")});
   setModal("producto");
 })();}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
