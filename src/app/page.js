@@ -828,7 +828,7 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:"13px",fontWeight:"700",color:C.accent,fontFamily:"'DM Mono',monospace"}}>Pedir: {p.cantComprar||"?"} {p.unidad}</div>
+                      <div style={{fontSize:"13px",fontWeight:"700",color:C.accent,fontFamily:"'DM Mono',monospace"}}>Pedir: {p.cantComprar ?? "?"} {p.unidad}</div>
                       <div style={{fontSize:"10px",color:C.muted}}>Disponible: <span style={{color:C.warn,fontWeight:"600"}}>{p.cantidad} {p.unidad}</span></div>
                       <div style={{fontSize:"10px",color:C.muted}}>Óptimo: <span style={{color:C.accent,fontWeight:"600"}}>{p.optimo} {p.unidad}</span> · Máx: <span style={{color:"#a78bfa",fontWeight:"600"}}>{p.maximo} {p.unidad}</span></div>
                       {p.presentacion&&(()=>{const cp=calcPresentaciones(p);return cp?<div style={{fontSize:"10px",color:"#a78bfa",fontWeight:"600"}}>📦 {cp.pres} {p.presentacion} = ${cp.costo.toFixed(2)}</div>:null;})()}
