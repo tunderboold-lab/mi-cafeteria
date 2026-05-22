@@ -535,8 +535,9 @@ export default function App() {
         : (freshDataRef.current?.proveedor || "");
       const nueva = productos.map(p=>p.id===editando?{...p,...fp,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
       setProductos(nueva);
-      const {error} = await supabase.from("inventario").update(updateData).eq("id",editando);
-      if(error) alert("Error al guardar: " + JSON.stringify(error));
+      alert("Guardando ID: " + editando + " | proveedor: " + updateData.proveedor + " | ubicacion: " + updateData.ubicacion);
+      const {error, data} = await supabase.from("inventario").update(updateData).eq("id",editando).select();
+      alert("Resultado: " + JSON.stringify(data) + " | Error: " + JSON.stringify(error));
     } else {
       const id = Date.now();
       const prod = {...fp, id, cantidad:+fp.cantidad, minimo:+fp.minimo, maximo:+fp.maximo||0, optimo:+fp.optimo||0, costo:+fp.costo||0, cantComprar};
@@ -602,7 +603,7 @@ export default function App() {
       txt+=`• ${p.emoji} ${p.nombre} | ${p.cantidad}/${p.optimo||"?"} ${p.unidad} | Mín:${p.minimo} Máx:${p.maximo} | Comprar:${p.cantComprar||0} | ${p.categoria} | ${p.proveedor||"Sin proveedor"} | ${p.ubicacion||"Sin ubicación"} | Costo:$${p.costo||0} | ${s.label}${p.caducidad?" | Cad:"+p.caducidad:""}\n`;
     });
     txt+=`\n--- PEDIDOS URGENTES ---\n`;
-    productos.filter(p=>p.minimo>0&&p.cantidad<=p.minimo).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
+    productos.filter(p=>p.cantidad<=p.minimo).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
     txt+=`\n--- MERMAS (${mermas.length}) ---\n`;
     mermas.slice(0,100).forEach(m=>{txt+=`${fmt(m.fecha)} | ${m.nombre} | ${m.cantidad} ${m.unidad} | ${m.motivo} | $${m.costoEstimado?.toFixed(2)||0}\n`;});
     txt+=`\n--- HISTORIAL (${historial.length}) ---\n`;
@@ -630,7 +631,7 @@ export default function App() {
     const pres = Math.ceil((p.cantComprar||0) / unidadesPorPres);
     return { pres, costo: pres * p.costoPresentacion, unidadesPorPres };
   };
-  const gastoEstimado = productos.filter(p=>p.minimo>0&&p.cantidad<=p.minimo).reduce((a,p)=>{
+  const gastoEstimado = productos.filter(p=>p.cantidad<=p.minimo).reduce((a,p)=>{
     const cp = calcPresentaciones(p);
     return a + (cp ? cp.costo : (p.cantComprar||0)*(p.costo||0));
   },0);
@@ -811,7 +812,7 @@ export default function App() {
           </div>
 
           {/* Pedidos por proveedor */}
-          {[...new Set(productos.filter(p=>p.minimo>0&&p.cantidad<=p.minimo).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
+          {[...new Set(productos.filter(p=>p.cantidad<=p.minimo).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
             const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.minimo>0&&p.cantidad<=p.minimo);
             if(!items.length)return null;
             return(
@@ -840,7 +841,7 @@ export default function App() {
             );
           })}
 
-          {productos.filter(p=>p.minimo>0&&p.cantidad<=p.minimo).length===0&&(
+          {productos.filter(p=>p.cantidad<=p.minimo).length===0&&(
             <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
               <div style={{fontSize:"36px",marginBottom:"10px"}}>✅</div>
               Todo el inventario está en niveles óptimos
