@@ -457,7 +457,7 @@ export default function App() {
       setProveedores(rPv.data ? rPv.data.map(dbToProveedor) : []);
       const modoConf = rConf.data?.find(c => c.clave === "modo");
       setModoFinSemana(modoConf?.valor === "finsemana");
-    } catch(e) { console.error(e); setProductos(PRODUCTOS_INICIALES); }
+    } catch(e) { console.error("Error cargando datos:", e); }
   }
 
   async function guardar(p,h,m,pv) {
@@ -730,7 +730,13 @@ export default function App() {
                     <div style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"6px",padding:"3px 8px",fontSize:"10px",color:s.color,fontWeight:"600",minWidth:"70px",textAlign:"center"}}>{s.icon} {s.label}</div>
                     <div style={{display:"flex",gap:"4px"}}>
                       <button className="ti" onClick={()=>{setFormM({productoId:p.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>📉</button>
-                      <button className="ti" onClick={()=>{setEditando(p.id);setFormP({...p,cantidad:String(p.cantidad),minimo:String(p.minimo),maximo:String(p.maximo||""),optimo:String(p.optimo||""),costo:String(p.costo||""),presentacion:p.presentacion||"",costoPresentacion:String(p.costoPresentacion||"")});setModal("producto");}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
+                      <button className="ti" onClick={()=>{setEditando(p.id);
+(async()=>{
+  const {data} = await supabase.from("inventario").select("*").eq("id",p.id).single();
+  const fresh = data ? dbToProducto(data) : p;
+  setFormP({...fresh,cantidad:String(fresh.cantidad),minimo:String(fresh.minimo),maximo:String(fresh.maximo||""),optimo:String(fresh.optimo||""),costo:String(fresh.costo||""),presentacion:fresh.presentacion||"",costoPresentacion:String(fresh.costoPresentacion||"")});
+})();
+setModal("producto");}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
                       <button className="ti" onClick={()=>eliminarProducto(p.id)} style={{background:"#ef444420",border:"none",color:C.danger,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
                     </div>
                   </div>
