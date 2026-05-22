@@ -813,7 +813,7 @@ export default function App() {
 
           {/* Pedidos por proveedor */}
           {[...new Set(productos.filter(p=>p.cantidad<=p.minimo).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
-            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.minimo>0&&p.cantidad<=p.minimo);
+            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=p.minimo);
             if(!items.length)return null;
             return(
               <div key={prov} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
