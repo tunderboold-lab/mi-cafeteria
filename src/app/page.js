@@ -506,32 +506,37 @@ export default function App() {
   async function guardarProducto() {
     if (!formP.nombre) return;
     const cantComprar = formP.optimo ? Math.max(0, +formP.optimo - +formP.cantidad) : 0;
-    // Use fresh data ref as base, then apply form changes on top
-    const base = freshDataRef.current || {};
-    const proveedorFinal = formP.proveedor !== undefined && formP.proveedor !== "" 
-      ? formP.proveedor 
-      : (base.proveedor || "");
-    const nuevo = {
-      ...base,
-      ...formP,
-      proveedor: proveedorFinal,
-      cantidad: +formP.cantidad,
-      minimo: +formP.minimo,
-      maximo: +formP.maximo || 0,
-      optimo: +formP.optimo || 0,
-      costo: +formP.costo || 0,
-      cantComprar,
-      presentacion: formP.presentacion || "",
-      costoPresentacion: +formP.costoPresentacion || 0
-    };
     guardar();
     if (editando) {
-      const nueva = productos.map(p=>p.id===editando?{...p,...nuevo}:p);
+      // Update each field individually to avoid overwriting proveedor
+      const updateData = {
+        nombre: formP.nombre,
+        barcode: formP.barcode || "",
+        categoria: formP.categoria,
+        cantidad: +formP.cantidad,
+        unidad: formP.unidad,
+        minimo: +formP.minimo,
+        maximo: +formP.maximo || 0,
+        optimo: +formP.optimo || 0,
+        cant_comprar: cantComprar,
+        costo: +formP.costo || 0,
+        ubicacion: formP.ubicacion || "",
+        caducidad: formP.caducidad || "",
+        emoji: formP.emoji || "📦",
+        es_variable: formP.esVariable || false,
+        presentacion: formP.presentacion || "",
+        costo_presentacion: +formP.costoPresentacion || 0,
+      };
+      // Only update proveedor if it has a value
+      if (formP.proveedor && formP.proveedor.trim() !== "") {
+        updateData.proveedor = formP.proveedor;
+      }
+      const nueva = productos.map(p=>p.id===editando?{...p,...formP,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
       setProductos(nueva);
-      await supabase.from("inventario").update(productoToDb({...nuevo, id:editando})).eq("id",editando);
+      await supabase.from("inventario").update(updateData).eq("id",editando);
     } else {
       const id = Date.now();
-      const prod = {id,...nuevo};
+      const prod = {...formP, id, cantidad:+formP.cantidad, minimo:+formP.minimo, maximo:+formP.maximo||0, optimo:+formP.optimo||0, costo:+formP.costo||0, cantComprar};
       setProductos(p=>[...p, prod]);
       await supabase.from("inventario").insert(productoToDb(prod));
     }
