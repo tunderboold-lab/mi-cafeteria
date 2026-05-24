@@ -424,6 +424,9 @@ export default function App() {
   const [ajusteDelta, setAjusteDelta] = useState("");
   const [pinOk, setPinOk] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [modalRecepcion, setModalRecepcion] = useState(false);
+  const [provRecepcion, setProvRecepcion] = useState("Todos");
+  const [cantRecepcion, setCantRecepcion] = useState({});
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
@@ -503,6 +506,50 @@ export default function App() {
       supabase.from("historial").insert(movimientoToDb(mov)),
     ]);
     setModal(null); setAjusteItem(null); setAjusteDelta("");
+  }
+
+  async function confirmarRecepcion() {
+    const updates = [];
+    const movimientos = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcion)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const prod = productos.find(p => p.id === id);
+      if (!prod) continue;
+      const nuevaCant = prod.cantidad + +cant;
+      updates.push(supabase.from("inventario").update({cantidad: nuevaCant}).eq("id", id));
+      movimientos.push(supabase.from("historial").insert({
+        id: Date.now() + id,
+        producto_id: id,
+        nombre: prod.nombre,
+        unidad: prod.unidad,
+        tipo: "entrada",
+        cantidad: +cant,
+        antes: prod.cantidad,
+        despues: nuevaCant,
+        fecha: new Date().toISOString()
+      }));
+    }
+    await Promise.all([...updates, ...movimientos]);
+    // Update local state
+    const nuevosProductos = productos.map(p => {
+      const cant = cantRecepcion[p.id];
+      if (!cant || +cant <= 0) return p;
+      return {...p, cantidad: p.cantidad + +cant};
+    });
+    setProductos(nuevosProductos);
+    setHistorial(h => {
+      const nuevos = Object.entries(cantRecepcion)
+        .filter(([,cant]) => cant && +cant > 0)
+        .map(([idStr, cant]) => {
+          const prod = productos.find(p => p.id === +idStr);
+          return {id: Date.now() + +idStr, productoId: +idStr, nombre: prod.nombre, unidad: prod.unidad, tipo: "entrada", cantidad: +cant, antes: prod.cantidad, despues: prod.cantidad + +cant, fecha: new Date().toISOString()};
+        });
+      return [...nuevos, ...h].slice(0, 500);
+    });
+    setCantRecepcion({});
+    setModalRecepcion(false);
+    alert("✅ Pedido recibido y actualizado correctamente");
   }
 
   async function guardarProducto() {
@@ -662,6 +709,7 @@ export default function App() {
               {modoFinSemana?"🌅 Fin semana":"📅 Semana"}
             </button>
             <button onClick={()=>setModal("exportar")} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:C.accent,borderColor:"#6ee7b730"}}>📤</button>
+            <button onClick={()=>{setProvRecepcion("Todos");setCantRecepcion({});setModalRecepcion(true);}} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:"#6ee7b7",borderColor:"#6ee7b730"}}>📦</button>
             <button onClick={()=>{setEditando(null);setFormP(FORM_VACIO);setModal("producto");}} style={{...btnP,padding:"7px 12px",fontSize:"13px"}}>＋</button>
           </div>
         </div>
@@ -1109,7 +1157,11 @@ export default function App() {
               </div>
             </>}
 
-            {/* Scanner */}
+            {/* Recepcion */}
+            {modal==="recepcion"&&<>
+            </>}
+
+          {/* Scanner */}
             {modal==="scanner"&&<>
               <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"8px",color:C.accent}}>📷 Escanear código de barras</div>
               <div style={{fontSize:"11px",color:C.muted,marginBottom:"12px"}}>Apunta la cámara al código de barras del producto</div>
@@ -1123,6 +1175,54 @@ export default function App() {
               <button onClick={cerrarScanner} style={{...btnG,width:"100%"}}>Cerrar cámara</button>
             </>}
 
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION ===== */}
+      {modalRecepcion&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"4px",color:"#6ee7b7"}}>📦 Recibir pedido</div>
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa la cantidad que llegó de cada producto</div>
+            
+
+
+            {/* Lista de productos */}
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {productos
+                .filter(p => true)
+                .map(p=>(
+                <div key={p.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{p.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{p.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {p.cantidad} {p.unidad}</div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={cantRecepcion[p.id]||""}
+                    onChange={e=>setCantRecepcion(r=>({...r,[p.id]:e.target.value}))}
+                    style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}
+                  />
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"30px"}}>{p.unidad}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Resumen */}
+            {Object.values(cantRecepcion).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcion).filter(v=>v&&+v>0).length} producto(s) por actualizar
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={confirmarRecepcion} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar recepción</button>
+            </div>
           </div>
         </div>
       )}
