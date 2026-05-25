@@ -473,6 +473,12 @@ export default function App() {
   const [cantRecepcion, setCantRecepcion] = useState({});
   const [busqRecepcion, setBusqRecepcion] = useState("");
   const [tipoRecepcion, setTipoRecepcion] = useState("entrada");
+  const [modalRecepcionFrutas, setModalRecepcionFrutas] = useState(false);
+  const [cantRecepcionFrutas, setCantRecepcionFrutas] = useState({});
+  const [busqRecepcionFrutas, setBusqRecepcionFrutas] = useState("");
+  const [modalRecepcionMezclas, setModalRecepcionMezclas] = useState(false);
+  const [cantRecepcionMezclas, setCantRecepcionMezclas] = useState({});
+  const [busqRecepcionMezclas, setBusqRecepcionMezclas] = useState("");
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
@@ -622,6 +628,48 @@ export default function App() {
 
     const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
     window.open(url, "_blank");
+  }
+
+  async function confirmarRecepcionFrutas() {
+    const updates = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcionFrutas)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const fruta = frutas.find(f => f.id === id);
+      if (!fruta) continue;
+      const nuevaCant = Math.round((fruta.cantidad + +cant) * 10) / 10;
+      updates.push(supabase.from("frutas_estado").update({cantidad: nuevaCant, actualizado_en: new Date().toISOString()}).eq("id", id));
+    }
+    await Promise.all(updates);
+    setFrutas(fr => fr.map(f => {
+      const cant = cantRecepcionFrutas[f.id];
+      if (!cant || +cant <= 0) return f;
+      return {...f, cantidad: Math.round((f.cantidad + +cant) * 10) / 10};
+    }));
+    setCantRecepcionFrutas({});
+    setModalRecepcionFrutas(false);
+    alert("✅ Frutas actualizadas correctamente");
+  }
+
+  async function confirmarRecepcionMezclas() {
+    const updates = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcionMezclas)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const mezcla = mezclas.find(m => m.id === id);
+      if (!mezcla) continue;
+      const nuevaSob = Math.round((mezcla.sobrante + +cant) * 10) / 10;
+      updates.push(supabase.from("mezclas_estado").update({sobrante: nuevaSob}).eq("id", id));
+    }
+    await Promise.all(updates);
+    setMezclas(ms => ms.map(m => {
+      const cant = cantRecepcionMezclas[m.id];
+      if (!cant || +cant <= 0) return m;
+      return {...m, sobrante: Math.round((m.sobrante + +cant) * 10) / 10};
+    }));
+    setCantRecepcionMezclas({});
+    setModalRecepcionMezclas(false);
+    alert("✅ Mezclas actualizadas correctamente");
   }
 
   async function confirmarRecepcion() {
@@ -1074,7 +1122,10 @@ export default function App() {
               <div style={{fontWeight:"700",fontSize:"15px"}}>🍓 Control de Frutas</div>
               <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Estado, cantidad y precio del día</div>
             </div>
-            <button onClick={cerrarDiaFrutas} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+            <div style={{display:"flex",gap:"6px"}}>
+              <button onClick={()=>{setCantRecepcionFrutas({});setBusqRecepcionFrutas("");setModalRecepcionFrutas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px"}}>📦 Recibir</button>
+              <button onClick={cerrarDiaFrutas} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+            </div>
           </div>
 
           <div style={{display:"grid",gap:"8px"}}> 
@@ -1145,6 +1196,9 @@ export default function App() {
               const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
               window.open(url,"_blank");
             }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+          </div>
+          <div style={{marginBottom:"14px"}}>
+            <button onClick={()=>{setCantRecepcionMezclas({});setBusqRecepcionMezclas("");setModalRecepcionMezclas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px",width:"100%"}}>📦 Recibir producción del día</button>
           </div>
 
           {/* Banner de aviso */}
@@ -1281,8 +1335,135 @@ export default function App() {
       {/* ===== REPORTES ===== */}
       {tab==="reportes"&&(
         <div style={{padding:"0 16px 24px"}}>
-          <div style={{fontWeight:"700",fontSize:"15px",marginBottom:"14px"}}>Reportes y Análisis</div>
+          <div style={{fontWeight:"700",fontSize:"15px",marginBottom:"14px"}}>📊 Dashboard</div>
 
+          {/* === ESTADO DEL STOCK === */}
+          {(()=>{
+            const agotado = productos.filter(p=>p.cantidad===0).length;
+            const bajo = productos.filter(p=>p.cantidad>0&&p.cantidad<=getMinimoActivo(p)).length;
+            const ok = productos.filter(p=>p.cantidad>getMinimoActivo(p)&&p.cantidad<=p.optimo).length;
+            const optimo = productos.filter(p=>p.optimo>0&&p.cantidad>p.optimo).length;
+            const total = productos.length;
+            const barW = (n) => total>0?`${Math.round(n/total*100)}%`:"0%";
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>🚦 Estado del stock</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}>
+                  {[{label:"Agotado",val:agotado,color:C.danger},{label:"Stock bajo",val:bajo,color:C.warn},{label:"OK",val:ok,color:C.info},{label:"Sobre óptimo",val:optimo,color:C.success}].map(s=>(
+                    <div key={s.label} style={{background:"#12151e",borderRadius:"8px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"8px"}}>
+                      <div style={{width:"8px",height:"8px",borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:"18px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.val}</div>
+                        <div style={{fontSize:"10px",color:C.muted}}>{s.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{height:"12px",borderRadius:"6px",overflow:"hidden",display:"flex",gap:"2px"}}>
+                  {agotado>0&&<div style={{width:barW(agotado),background:C.danger,borderRadius:"4px"}}/>}
+                  {bajo>0&&<div style={{width:barW(bajo),background:C.warn,borderRadius:"4px"}}/>}
+                  {ok>0&&<div style={{width:barW(ok),background:C.info,borderRadius:"4px"}}/>}
+                  {optimo>0&&<div style={{width:barW(optimo),background:C.success,borderRadius:"4px"}}/>}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* === TOP 10 PRODUCTOS MÁS MOVIDOS === */}
+          {(()=>{
+            const movimientos = historial.filter(h=>h.tipo==="consumo"||h.tipo==="entrada");
+            const conteo = {};
+            movimientos.forEach(h=>{
+              if(!conteo[h.nombre]) conteo[h.nombre]={nombre:h.nombre,movimientos:0,entradas:0,salidas:0};
+              conteo[h.nombre].movimientos++;
+              if(h.tipo==="entrada") conteo[h.nombre].entradas++;
+              if(h.tipo==="consumo") conteo[h.nombre].salidas++;
+            });
+            const top10 = Object.values(conteo).sort((a,b)=>b.movimientos-a.movimientos).slice(0,10);
+            const maxMov = top10[0]?.movimientos||1;
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>🔥 Top 10 productos más movidos</div>
+                {top10.length===0?(
+                  <div style={{fontSize:"12px",color:C.muted}}>Sin movimientos registrados aún</div>
+                ):top10.map((p,i)=>(
+                  <div key={p.nombre} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"3px"}}>
+                      <span style={{fontSize:"12px",fontWeight:"600"}}><span style={{color:C.accent,fontFamily:"'DM Mono',monospace",marginRight:"6px"}}>#{i+1}</span>{p.nombre}</span>
+                      <span style={{fontSize:"11px",color:C.muted,fontFamily:"'DM Mono',monospace"}}>{p.movimientos} movs</span>
+                    </div>
+                    <div style={{height:"6px",background:"#12151e",borderRadius:"3px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.round(p.movimientos/maxMov*100)}%`,background:`linear-gradient(90deg,#6ee7b7,#3b82f6)`,borderRadius:"3px"}}/>
+                    </div>
+                    <div style={{display:"flex",gap:"10px",marginTop:"2px"}}>
+                      <span style={{fontSize:"9px",color:C.success}}>📥 {p.entradas} entradas</span>
+                      <span style={{fontSize:"9px",color:C.info}}>📤 {p.salidas} salidas</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* === MERMAS POR SEMANA === */}
+          {(()=>{
+            const semanas = [];
+            for(let i=3;i>=0;i--){
+              const inicio = new Date(); inicio.setDate(inicio.getDate()-((i+1)*7));
+              const fin = new Date(); fin.setDate(fin.getDate()-(i*7));
+              const label = i===0?"Esta semana":i===1?"Sem -1":i===2?"Sem -2":"Sem -3";
+              const items = mermas.filter(m=>{const f=new Date(m.fecha);return f>=inicio&&f<fin;});
+              const costo = items.reduce((a,m)=>a+(m.costoEstimado||0),0);
+              semanas.push({label,costo,count:items.length});
+            }
+            const maxCosto = Math.max(...semanas.map(s=>s.costo),1);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>📉 Mermas por semana</div>
+                <div style={{display:"flex",gap:"8px",alignItems:"flex-end",height:"80px",marginBottom:"8px"}}>
+                  {semanas.map((s,i)=>(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"4px",height:"100%",justifyContent:"flex-end"}}>
+                      <div style={{fontSize:"9px",color:C.danger,fontFamily:"'DM Mono',monospace"}}>${s.costo.toFixed(0)}</div>
+                      <div style={{width:"100%",background:s.costo>0?"linear-gradient(180deg,#ef4444,#a78bfa)":"#2a2d3a",borderRadius:"4px 4px 0 0",height:`${Math.max(s.costo/maxCosto*60,s.costo>0?4:0)}px`,minHeight:s.costo>0?"4px":"0"}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:"8px"}}>
+                  {semanas.map((s,i)=>(
+                    <div key={i} style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted}}>{s.label}</div>
+                      <div style={{fontSize:"9px",color:"#a78bfa"}}>{s.count} mermas</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* === GASTO ESTIMADO VS MERMAS MES === */}
+          {(()=>{
+            const mermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
+            const pedidoMes = gastoEstimado;
+            const max = Math.max(mermasMes, pedidoMes, 1);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>💰 Este mes</div>
+                {[{label:"Gasto estimado pedido",val:pedidoMes,color:C.info},{label:"Pérdida por mermas",val:mermasMes,color:C.danger}].map(s=>(
+                  <div key={s.label} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                      <span style={{fontSize:"12px"}}>{s.label}</span>
+                      <span style={{fontSize:"12px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>${s.val.toFixed(2)}</span>
+                    </div>
+                    <div style={{height:"8px",background:"#12151e",borderRadius:"4px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.round(s.val/max*100)}%`,background:s.color,borderRadius:"4px",opacity:0.8}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* === PRÓXIMOS A CADUCAR === */}
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
             <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px"}}>📅 Próximos a caducar</div>
             {productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=14;}).length===0
@@ -1299,6 +1480,7 @@ export default function App() {
             }
           </div>
 
+          {/* === MERMAS POR MOTIVO === */}
           <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
             <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px"}}>📉 Mermas por motivo (mes actual)</div>
             {MOTIVOS_MERMA.map(motivo=>{
@@ -1522,6 +1704,78 @@ export default function App() {
               <button onClick={cerrarScanner} style={{...btnG,width:"100%"}}>Cerrar cámara</button>
             </>}
 
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION FRUTAS ===== */}
+      {modalRecepcionFrutas&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>📦 Recibir frutas</div>
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa la cantidad que llegó de cada fruta</div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input placeholder="🔍 Buscar fruta..." value={busqRecepcionFrutas} onChange={e=>setBusqRecepcionFrutas(e.target.value)} style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}/>
+              <button onClick={()=>document.getElementById("frutas-recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}}>⬇️</button>
+            </div>
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {frutas.filter(f=>!busqRecepcionFrutas||f.nombre.toLowerCase().includes(busqRecepcionFrutas.toLowerCase())).map(f=>(
+                <div key={f.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{f.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{f.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {f.cantidad} {f.unidad}</div>
+                  </div>
+                  <input type="number" min="0" step="0.5" placeholder="0" value={cantRecepcionFrutas[f.id]||""} onChange={e=>setCantRecepcionFrutas(r=>({...r,[f.id]:e.target.value}))} style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}/>
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"30px"}}>{f.unidad}</span>
+                </div>
+              ))}
+            </div>
+            {Object.values(cantRecepcionFrutas).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcionFrutas).filter(v=>v&&+v>0).length} fruta(s) por actualizar
+              </div>
+            )}
+            <div id="frutas-recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcionFrutas(false);setCantRecepcionFrutas({});setBusqRecepcionFrutas("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={confirmarRecepcionFrutas} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar recepción</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION MEZCLAS ===== */}
+      {modalRecepcionMezclas&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>📦 Recibir producción</div>
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa cuánto se produjo de cada mezcla hoy</div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input placeholder="🔍 Buscar mezcla..." value={busqRecepcionMezclas} onChange={e=>setBusqRecepcionMezclas(e.target.value)} style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}/>
+              <button onClick={()=>document.getElementById("mezclas-recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}}>⬇️</button>
+            </div>
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {mezclas.filter(m=>!busqRecepcionMezclas||m.nombre.toLowerCase().includes(busqRecepcionMezclas.toLowerCase())).map(m=>(
+                <div key={m.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{m.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{m.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Sobrante actual: {m.sobrante}L</div>
+                  </div>
+                  <input type="number" min="0" step="0.5" placeholder="0" value={cantRecepcionMezclas[m.id]||""} onChange={e=>setCantRecepcionMezclas(r=>({...r,[m.id]:e.target.value}))} style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}/>
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"20px"}}>L</span>
+                </div>
+              ))}
+            </div>
+            {Object.values(cantRecepcionMezclas).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcionMezclas).filter(v=>v&&+v>0).length} mezcla(s) por actualizar
+              </div>
+            )}
+            <div id="mezclas-recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcionMezclas(false);setCantRecepcionMezclas({});setBusqRecepcionMezclas("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={confirmarRecepcionMezclas} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar producción</button>
+            </div>
           </div>
         </div>
       )}
