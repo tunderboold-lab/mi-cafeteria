@@ -374,10 +374,10 @@ function dbToProducto(r) {
   };
 }
 function movimientoToDb(m) {
-  return {id:m.id,producto_id:m.productoId,nombre:m.nombre,unidad:m.unidad,tipo:m.tipo,cantidad:m.cantidad,antes:m.antes,despues:m.despues,fecha:m.fecha};
+  return {id:m.id,producto_id:m.productoId,nombre:m.nombre,unidad:m.unidad,tipo:m.tipo,cantidad:m.cantidad,antes:m.antes,despues:m.despues,fecha:m.fecha,usuario:m.usuario||""};
 }
 function dbToMovimiento(r) {
-  return {id:r.id,productoId:r.producto_id,nombre:r.nombre,unidad:r.unidad,tipo:r.tipo,cantidad:r.cantidad,antes:r.antes,despues:r.despues,fecha:r.fecha};
+  return {id:r.id,productoId:r.producto_id,nombre:r.nombre,unidad:r.unidad,tipo:r.tipo,cantidad:r.cantidad,antes:r.antes,despues:r.despues,fecha:r.fecha,usuario:r.usuario||""};
 }
 function mermaToDb(m) {
   return {id:m.id,producto_id:m.productoId,nombre:m.nombre,unidad:m.unidad,cantidad:m.cantidad,motivo:m.motivo,notas:m.notas||"",costo_estimado:m.costoEstimado||0,antes:m.antes,despues:m.despues,fecha:m.fecha};
@@ -408,16 +408,16 @@ const esFindeSemana = () => { const dia = new Date().getDay(); return dia === 0 
 const getMinimoActivo = (p) => { const fs = esFindeSemana(); return (fs && p.minimoFS > 0) ? p.minimoFS : p.minimo; };
 
 const MEZCLAS_INICIALES = [
-  {id:1,nombre:"Waffles",emoji:"🧇",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:2,nombre:"Crepas",emoji:"🥞",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:3,nombre:"Mini Hot Cakes",emoji:"🥞",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:4,nombre:"Fresas con Crema",emoji:"🍓",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:5,nombre:"Crema Ferrero",emoji:"🍫",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:6,nombre:"Crema Rafaelo",emoji:"🍬",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:7,nombre:"Crema Batida",emoji:"🍦",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:8,nombre:"Tapioca",emoji:"🧋",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:9,nombre:"Base para Frappes",emoji:"🥤",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
-  {id:10,nombre:"Mezcla Banderillas Coreanas",emoji:"🍢",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:1,nombre:"Waffles",emoji:"🧇",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:2,nombre:"Crepas",emoji:"🥞",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:3,nombre:"Mini Hot Cakes",emoji:"🥞",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:4,nombre:"Fresas con Crema",emoji:"🍓",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:5,nombre:"Crema Ferrero",emoji:"🍫",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:6,nombre:"Crema Rafaelo",emoji:"🍬",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:7,nombre:"Crema Batida",emoji:"🍦",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:8,nombre:"Tapioca",emoji:"🧋",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:9,nombre:"Base para Frappes",emoji:"🥤",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:10,nombre:"Mezcla Banderillas Coreanas",emoji:"🍢",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
 ];
 
 const FRUTAS_INICIALES = [
@@ -473,6 +473,15 @@ export default function App() {
   const [cantRecepcion, setCantRecepcion] = useState({});
   const [busqRecepcion, setBusqRecepcion] = useState("");
   const [tipoRecepcion, setTipoRecepcion] = useState("entrada");
+  const [usuario, setUsuario] = useState(() => localStorage.getItem("cafeteria_usuario") || "");
+  const [modalUsuario, setModalUsuario] = useState(false);
+  const [usuarios, setUsuarios] = useState([]);
+  const [pinUsuario, setPinUsuario] = useState("");
+  const [nombreSeleccionado, setNombreSeleccionado] = useState("");
+  const [errorLogin, setErrorLogin] = useState("");
+  const [modalGestionUsuarios, setModalGestionUsuarios] = useState(false);
+  const [formUsuario, setFormUsuario] = useState({nombre:"",pin:"",rol:"trabajador"});
+  const [inputUsuario, setInputUsuario] = useState("");
   const [modalRecepcionFrutas, setModalRecepcionFrutas] = useState(false);
   const [cantRecepcionFrutas, setCantRecepcionFrutas] = useState({});
   const [busqRecepcionFrutas, setBusqRecepcionFrutas] = useState("");
@@ -483,7 +492,10 @@ export default function App() {
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => { 
+    cargar(); 
+    if (!localStorage.getItem("cafeteria_usuario")) setModalUsuario(true);
+  }, []);
 
   // Alertas caducidad al cargar
   useEffect(() => {
@@ -535,15 +547,19 @@ export default function App() {
       if (rMezclas.data && rMezclas.data.length > 0) {
         setMezclas(MEZCLAS_INICIALES.map(m => {
           const db = rMezclas.data.find(r => r.id === m.id);
-          return db ? {...m, sobrante: db.sobrante||0, optimoSemana: db.optimo_semana||0, optimoFS: db.optimo_fs||0, notas: db.notas||"", fechaRegistro: db.fecha_registro||""} : m;
+          return db ? {...m, sobrante: db.sobrante||0, optimoSemana: db.optimo_semana||0, optimoFS: db.optimo_fs||0, notas: db.notas||"", fechaRegistro: db.fecha_registro||"", unidad: db.unidad||m.unidad||"L"} : m;
         }));
       } else {
         // Primera vez: insertar mezclas iniciales
         await supabase.from("mezclas_estado").insert(MEZCLAS_INICIALES.map(m => ({
-          id: m.id, nombre: m.nombre, emoji: m.emoji,
+          id: m.id, nombre: m.nombre, emoji: m.emoji, unidad: m.unidad||"L",
           sobrante: 0, optimo_semana: 0, optimo_fs: 0, notas: "", fecha_registro: null
         })));
       }
+      // Cargar usuarios
+      const rUsuarios = await supabase.from("usuarios").select("*").eq("activo", true).order("nombre");
+      if (rUsuarios.data) setUsuarios(rUsuarios.data);
+
       const modoConf = rConf.data?.find(c => c.clave === "modo");
       setModoFinSemana(modoConf?.valor === "finsemana");
     } catch(e) { console.error("Error cargando datos:", e); }
@@ -565,7 +581,7 @@ export default function App() {
     const prod = productos.find(p=>p.id===id); if (!prod) return;
     const nuevaCant = Math.max(0, prod.cantidad + delta);
     const nuevaLista = productos.map(p=>p.id===id?{...p,cantidad:nuevaCant}:p);
-    const mov = {id:Date.now(),productoId:id,nombre:prod.nombre,unidad:prod.unidad,tipo:delta>0?"entrada":"consumo",cantidad:Math.abs(delta),antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
+    const mov = {id:Date.now(),productoId:id,nombre:prod.nombre,unidad:prod.unidad,tipo:delta>0?"entrada":"consumo",cantidad:Math.abs(delta),antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString(),usuario:usuario||"Desconocido"};
     const nuevoH = [mov,...historial].slice(0,500);
     setProductos(nuevaLista); setHistorial(nuevoH);
     guardar();
@@ -902,6 +918,7 @@ export default function App() {
           </div>
           <div style={{display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}}>
             {guardando&&<span style={{fontSize:"10px",color:C.accent,opacity:0.8}}>● Guardando</span>}
+            {usuario&&<button onClick={()=>{setInputUsuario(usuario);setModalUsuario(true);}} style={{...btnG,fontSize:"10px",padding:"4px 8px",color:"#a78bfa",borderColor:"#a78bfa30"}}>👤 {usuario}</button>}
             <button onClick={toggleModo} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:modoFinSemana?"#f59e0b":C.muted,borderColor:modoFinSemana?"#f59e0b50":C.border}}>
               {modoFinSemana?"🌅 Fin semana":"📅 Semana"}
             </button>
@@ -1047,7 +1064,30 @@ export default function App() {
               <div style={{fontWeight:"700",fontSize:"15px"}}>Lista de Pedidos</div>
               <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Modo: <span style={{color:modoFinSemana?C.warn:C.info}}>{modoFinSemana?"🌅 Fin de semana":"📅 Entre semana"}</span></div>
             </div>
-            <button onClick={()=>{setFormProv({nombre:"",contacto:"",telefono:"",diasEntrega:""});setModal("proveedor");}} style={{...btnG,fontSize:"12px",padding:"7px 12px"}}>+ Proveedor</button>
+            <div style={{display:"flex",gap:"6px"}}>
+              <button onClick={()=>{
+                const win = window.open("","_blank");
+                const fecha = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
+                const provs = [...new Set(productos.filter(p=>p.cantidad<=getMinimoActivo(p)).map(p=>p.proveedor||"Sin proveedor asignado"))].sort();
+                let html = `<html><head><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{font-size:18px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:20px}h2{font-size:14px;background:#f0f0f0;padding:6px 10px;border-radius:4px;margin-top:16px}table{width:100%;border-collapse:collapse;margin-top:8px}td{padding:6px 8px;border-bottom:1px solid #eee;font-size:13px}.check{width:20px;text-align:center}input[type=checkbox]{width:14px;height:14px}@media print{button{display:none}}</style></head><body>`;
+                html += `<h1>🛒 Lista de Compras</h1><p>${fecha} · Modo: ${modoFinSemana?"Fin de semana":"Entre semana"}</p>`;
+                html += `<button onclick="window.print()" style="padding:8px 16px;background:#6ee7b7;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px">🖨️ Imprimir</button>`;
+                provs.forEach(prov=>{
+                  const items = productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=getMinimoActivo(p));
+                  if(!items.length) return;
+                  html += `<h2>🏪 ${prov}</h2><table>`;
+                  items.forEach(p=>{
+                    html += `<tr><td class="check"><input type="checkbox"/></td><td>${p.emoji} ${p.nombre}</td><td style="color:#666">${p.cantidad} ${p.unidad} actual</td><td style="font-weight:bold">Pedir: ${p.cantComprar??"-"} ${p.unidad}</td>${p.costo>0?`<td style="color:#666">$${((p.cantComprar||0)*p.costo).toFixed(2)}</td>`:""}</tr>`;
+                  });
+                  html += `</table>`;
+                });
+                html += `</body></html>`;
+                win.document.write(html);
+                win.document.close();
+              }} style={{...btnG,fontSize:"12px",padding:"7px 12px"}}>🖨️ Imprimir</button>
+  <button onClick={()=>setModalGestionUsuarios(true)} style={{...btnG,fontSize:"12px",padding:"7px 12px",color:"#a78bfa",borderColor:"#a78bfa30"}}>👥 Usuarios</button>
+              <button onClick={()=>{setFormProv({nombre:"",contacto:"",telefono:"",diasEntrega:""});setModal("proveedor");}} style={{...btnG,fontSize:"12px",padding:"7px 12px"}}>+ Proveedor</button>
+            </div>
           </div>
 
           {/* Gasto estimado */}
@@ -1189,8 +1229,8 @@ export default function App() {
               mezclas.forEach(m=>{
                 const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
                 const producir = Math.max(0, optimo - m.sobrante);
-                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}L sobrante`;
-                if(producir>0) msg += ` _(producir ${producir}L mañana)_`;
+                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}{m.unidad||"L"} sobrante`;
+                if(producir>0) msg += ` _(producir ${producir}${m.unidad||"L"} mañana)_`;
                 msg += "\n";
               });
               const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
@@ -1230,14 +1270,14 @@ export default function App() {
                       <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>SOBRANTE</div>
                       <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
                         <button onClick={async()=>{const nv=Math.max(0,m.sobrante-0.5);setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>−</button>
-                        <div style={{background:"#6ee7b720",border:"1px solid #6ee7b740",borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:C.accent,fontSize:"13px",minWidth:"60px",textAlign:"center"}}>{m.sobrante}L</div>
+                        <div style={{background:"#6ee7b720",border:"1px solid #6ee7b740",borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:C.accent,fontSize:"13px",minWidth:"60px",textAlign:"center"}}>{m.sobrante}{m.unidad||"L"}</div>
                         <button onClick={async()=>{const nv=m.sobrante+0.5;setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>+</button>
                       </div>
                     </div>
                     <div style={{textAlign:"center",minWidth:"80px"}}>
                       <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>PRODUCIR MAÑANA</div>
                       <div style={{background:producir>0?"#f59e0b20":"#22c55e20",border:`1px solid ${producir>0?C.warn+"40":C.success+"40"}`,borderRadius:"7px",padding:"4px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"700",color:producir>0?C.warn:C.success,fontSize:"14px",textAlign:"center"}}>
-                        {producir>0?`${producir}L`:"✅"}
+                        {producir>0?`${producir}${m.unidad||"L"}`:"✅"}
                       </div>
                     </div>
                     <div style={{display:"flex",gap:"4px"}}>
@@ -1321,7 +1361,7 @@ export default function App() {
                     <div style={{background:t.bg,borderRadius:"6px",width:"30px",height:"30px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"15px",flexShrink:0}}>{t.icon}</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:"12px",fontWeight:"600"}}>{h.nombre} <span style={{color:t.color,fontSize:"10px",fontWeight:"400"}}>· {t.label}</span></div>
-                      <div style={{fontSize:"10px",color:C.muted,fontFamily:"'DM Mono',monospace"}}>{h.antes}→{h.despues} {h.unidad}</div>
+                      <div style={{fontSize:"10px",color:C.muted,fontFamily:"'DM Mono',monospace"}}>{h.antes}→{h.despues} {h.unidad}{h.usuario&&h.usuario!=="Desconocido"&&<span style={{color:"#a78bfa"}}> · 👤{h.usuario}</span>}</div>
                     </div>
                     <div style={{fontSize:"9px",color:C.muted,textAlign:"right"}}>{fmt(h.fecha)}</div>
                   </div>
@@ -1365,6 +1405,50 @@ export default function App() {
                   {ok>0&&<div style={{width:barW(ok),background:C.info,borderRadius:"4px"}}/>}
                   {optimo>0&&<div style={{width:barW(optimo),background:C.success,borderRadius:"4px"}}/>}
                 </div>
+              </div>
+            );
+          })()}
+
+          {/* === PROYECCIÓN DE DURACIÓN === */}
+          {(()=>{
+            const ahora = new Date();
+            const hace7 = new Date(ahora - 7*24*60*60*1000);
+            const consumos7d = historial.filter(h=>h.tipo==="consumo"&&new Date(h.fecha)>=hace7);
+            const consumoPorProducto = {};
+            consumos7d.forEach(h=>{
+              if(!consumoPorProducto[h.nombre]) consumoPorProducto[h.nombre]=0;
+              consumoPorProducto[h.nombre]+=h.cantidad;
+            });
+            const proyecciones = productos
+              .filter(p=>p.cantidad>0&&consumoPorProducto[p.nombre]>0)
+              .map(p=>{
+                const consumoDiario = consumoPorProducto[p.nombre]/7;
+                const diasRestantes = Math.floor(p.cantidad/consumoDiario);
+                return {...p, consumoDiario, diasRestantes};
+              })
+              .sort((a,b)=>a.diasRestantes-b.diasRestantes)
+              .slice(0,10);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"4px"}}>⏱️ Proyección de duración</div>
+                <div style={{fontSize:"10px",color:C.muted,marginBottom:"12px"}}>Basado en consumo de los últimos 7 días</div>
+                {proyecciones.length===0?(
+                  <div style={{fontSize:"12px",color:C.muted}}>Sin suficiente historial de consumo aún</div>
+                ):proyecciones.map(p=>(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                      <span style={{fontSize:"16px"}}>{p.emoji}</span>
+                      <div>
+                        <div style={{fontSize:"12px",fontWeight:"600"}}>{p.nombre}</div>
+                        <div style={{fontSize:"10px",color:C.muted}}>{p.cantidad} {p.unidad} · -{p.consumoDiario.toFixed(1)}/día</div>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:"13px",fontWeight:"700",color:p.diasRestantes<=3?C.danger:p.diasRestantes<=7?C.warn:C.success,fontFamily:"'DM Mono',monospace"}}>{p.diasRestantes}d</div>
+                      <div style={{fontSize:"9px",color:C.muted}}>{p.diasRestantes<=3?"🚨 Urgente":p.diasRestantes<=7?"⚠️ Pronto":"✅ OK"}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             );
           })()}
@@ -1708,6 +1792,125 @@ export default function App() {
         </div>
       )}
 
+      {/* ===== MODAL USUARIO ===== */}
+      {modalUsuario&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"360px",textAlign:"center"}}>
+            <div style={{fontSize:"32px",marginBottom:"10px"}}>🔐</div>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px"}}>Identificarse</div>
+            <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"18px"}}>Selecciona tu nombre e ingresa tu PIN</div>
+            
+            {/* Selector de nombre */}
+            <select 
+              value={nombreSeleccionado}
+              onChange={e=>{setNombreSeleccionado(e.target.value);setPinUsuario("");setErrorLogin("");}}
+              style={{width:"100%",background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"12px 14px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",marginBottom:"10px",boxSizing:"border-box",cursor:"pointer"}}
+            >
+              <option value="">Selecciona tu nombre...</option>
+              {usuarios.map(u=><option key={u.id} value={u.nombre}>{u.nombre}</option>)}
+            </select>
+
+            {/* PIN */}
+            {nombreSeleccionado&&(
+              <input 
+                type="password"
+                placeholder="Tu PIN..."
+                value={pinUsuario}
+                onChange={e=>{setPinUsuario(e.target.value);setErrorLogin("");}}
+                onKeyDown={e=>{
+                  if(e.key==="Enter"){
+                    const u = usuarios.find(x=>x.nombre===nombreSeleccionado);
+                    if(u&&u.pin===pinUsuario){
+                      localStorage.setItem("cafeteria_usuario",nombreSeleccionado);
+                      setUsuario(nombreSeleccionado);
+                      setModalUsuario(false);
+                      setPinUsuario("");
+                      setNombreSeleccionado("");
+                      setErrorLogin("");
+                    } else {
+                      setErrorLogin("PIN incorrecto");
+                      setPinUsuario("");
+                    }
+                  }
+                }}
+                style={{width:"100%",background:"#12151e",border:`1px solid ${errorLogin?"#ef4444":"#2a2d3a"}`,borderRadius:"10px",padding:"12px 14px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"20px",outline:"none",textAlign:"center",letterSpacing:"8px",marginBottom:"8px",boxSizing:"border-box"}}
+                autoFocus
+              />
+            )}
+            
+            {errorLogin&&<div style={{color:"#ef4444",fontSize:"12px",marginBottom:"8px"}}>{errorLogin}</div>}
+
+            <button onClick={()=>{
+              const u = usuarios.find(x=>x.nombre===nombreSeleccionado);
+              if(!nombreSeleccionado) return;
+              if(u&&u.pin===pinUsuario){
+                localStorage.setItem("cafeteria_usuario",nombreSeleccionado);
+                setUsuario(nombreSeleccionado);
+                setModalUsuario(false);
+                setPinUsuario("");
+                setNombreSeleccionado("");
+                setErrorLogin("");
+              } else {
+                setErrorLogin("PIN incorrecto");
+                setPinUsuario("");
+              }
+            }} style={{width:"100%",background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"12px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"14px",opacity:nombreSeleccionado?1:0.5}}>Entrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL GESTIÓN USUARIOS ===== */}
+      {modalGestionUsuarios&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>👥 Gestión de Usuarios</div>
+            
+            {/* Lista de usuarios */}
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {usuarios.map(u=>(
+                <div key={u.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{u.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>PIN: {"•".repeat(u.pin.length)} · {u.rol==="admin"?"👑 Admin":"👤 Trabajador"}</div>
+                  </div>
+                  {u.rol!=="admin"&&(
+                    <button onClick={async()=>{
+                      await supabase.from("usuarios").update({activo:false}).eq("id",u.id);
+                      setUsuarios(us=>us.filter(x=>x.id!==u.id));
+                    }} style={{background:"#ef444420",border:"none",color:"#ef4444",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Agregar usuario */}
+            <div style={{borderTop:"1px solid #2a2d3a",paddingTop:"14px",marginBottom:"14px"}}>
+              <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"10px",fontWeight:"600"}}>AGREGAR USUARIO</div>
+              <div style={{display:"grid",gap:"8px"}}>
+                <input placeholder="Nombre" value={formUsuario.nombre} onChange={e=>setFormUsuario(f=>({...f,nombre:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none"}}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <input type="password" placeholder="PIN" value={formUsuario.pin} onChange={e=>setFormUsuario(f=>({...f,pin:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",letterSpacing:"4px"}}/>
+                  <select value={formUsuario.rol} onChange={e=>setFormUsuario(f=>({...f,rol:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",cursor:"pointer"}}>
+                    <option value="trabajador">Trabajador</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <button onClick={async()=>{
+                  if(!formUsuario.nombre||!formUsuario.pin) return;
+                  const id = Date.now();
+                  const nuevo = {id, nombre:formUsuario.nombre, pin:formUsuario.pin, rol:formUsuario.rol, activo:true};
+                  await supabase.from("usuarios").insert(nuevo);
+                  setUsuarios(us=>[...us,nuevo]);
+                  setFormUsuario({nombre:"",pin:"",rol:"trabajador"});
+                }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px"}}>+ Agregar</button>
+              </div>
+            </div>
+
+            <button onClick={()=>setModalGestionUsuarios(false)} style={{width:"100%",background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px"}}>Cerrar</button>
+          </div>
+        </div>
+      )}
+
       {/* ===== MODAL RECEPCION FRUTAS ===== */}
       {modalRecepcionFrutas&&(
         <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
@@ -1760,10 +1963,10 @@ export default function App() {
                   <span style={{fontSize:"18px"}}>{m.emoji}</span>
                   <div style={{flex:1}}>
                     <div style={{fontSize:"13px",fontWeight:"600"}}>{m.nombre}</div>
-                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Sobrante actual: {m.sobrante}L</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Sobrante actual: {m.sobrante}{m.unidad||"L"}</div>
                   </div>
                   <input type="number" min="0" step="0.5" placeholder="0" value={cantRecepcionMezclas[m.id]||""} onChange={e=>setCantRecepcionMezclas(r=>({...r,[m.id]:e.target.value}))} style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}/>
-                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"20px"}}>L</span>
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"20px"}}>{m.unidad||"L"}</span>
                 </div>
               ))}
             </div>
@@ -1786,7 +1989,14 @@ export default function App() {
           <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>✏️ {formMezcla.nombre}</div>
             <div style={{display:"grid",gap:"12px"}}>
-              <div><label style={lbl}>Sobrante de hoy (L)</label><input type="number" min="0" step="0.5" value={formMezcla.sobrante} onChange={e=>setFormMezcla(f=>({...f,sobrante:+e.target.value,fechaRegistro:new Date().toISOString()}))} style={inp}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"8px"}}>
+                <div><label style={lbl}>Sobrante de hoy</label><input type="number" min="0" step="0.5" value={formMezcla.sobrante} onChange={e=>setFormMezcla(f=>({...f,sobrante:+e.target.value,fechaRegistro:new Date().toISOString()}))} style={inp}/></div>
+                <div><label style={lbl}>Unidad</label><select value={formMezcla.unidad||"L"} onChange={e=>setFormMezcla(f=>({...f,unidad:e.target.value}))} style={{...inp,width:"80px",cursor:"pointer"}}>
+                  <option value="L">L</option>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                </select></div>
+              </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
                 <div><label style={lbl}>Óptimo semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoSemana} onChange={e=>setFormMezcla(f=>({...f,optimoSemana:+e.target.value}))} style={inp}/></div>
                 <div><label style={lbl}>Óptimo fin de semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoFS} onChange={e=>setFormMezcla(f=>({...f,optimoFS:+e.target.value}))} style={inp}/></div>
@@ -1803,7 +2013,8 @@ export default function App() {
                   optimo_semana: formMezcla.optimoSemana||0,
                   optimo_fs: formMezcla.optimoFS||0,
                   notas: formMezcla.notas||"",
-                  fecha_registro: fechaReg
+                  fecha_registro: fechaReg,
+                  unidad: formMezcla.unidad||"L"
                 }).eq("id", editandoMezcla);
                 setModalMezcla(false);
               }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
