@@ -1116,6 +1116,11 @@ export default function App() {
             }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
           </div>
 
+          {/* Banner de aviso */}
+          <div style={{background:"#f59e0b15",border:"1px solid #f59e0b40",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:C.warn}}>
+            ⚠️ <strong>Revisar etiquetado:</strong> Las mezclas no deben tener más de <strong>3 días</strong> de elaboradas. Verificar fecha antes de usar.
+          </div>
+
           <div style={{display:"grid",gap:"8px"}}>
             {mezclas.map(m=>{
               const mañana = new Date();
@@ -1123,15 +1128,17 @@ export default function App() {
               const esMañanaFS = [0,5,6].includes(mañana.getDay());
               const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
               const producir = Math.max(0, optimo - m.sobrante);
+              const diasMezcla = m.fechaRegistro ? Math.floor((new Date()-new Date(m.fechaRegistro))/86400000) : null;
+              const vencida = diasMezcla !== null && diasMezcla >= 3;
               return(
-                <div key={m.id} style={{background:C.card,border:`1px solid ${producir>0?C.warn+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
+                <div key={m.id} style={{background:C.card,border:`1px solid ${vencida?"#ef444440":producir>0?C.warn+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
                   <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                     <span style={{fontSize:"24px"}}>{m.emoji}</span>
                     <div style={{flex:1,minWidth:"120px"}}>
                       <div style={{fontWeight:"700",fontSize:"14px"}}>{m.nombre}</div>
                       <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
                         Óptimo: <span style={{color:C.info}}>{optimo}L</span>
-                        {m.fechaRegistro&&<span> · 📅 {new Date(m.fechaRegistro).toLocaleDateString("es-MX")}</span>}
+                        {diasMezcla!==null&&<span style={{color:vencida?C.danger:C.muted}}> · 📅 {diasMezcla}d {vencida?"⚠️ VENCIDA":""}</span>}
                       </div>
                     </div>
                     <div style={{textAlign:"center"}}>
@@ -1148,7 +1155,10 @@ export default function App() {
                         {producir>0?`${producir}L`:"✅"}
                       </div>
                     </div>
-                    <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      <button onClick={()=>{setFormM({productoId:"mezcla_"+m.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma_mezcla");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>📉</button>
+                      <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                    </div>
                   </div>
                   {m.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"8px",fontStyle:"italic",paddingLeft:"34px"}}>💬 {m.notas}</div>}
                 </div>
@@ -1426,6 +1436,38 @@ export default function App() {
                   const merma = {id:Date.now(),productoId:"fruta_"+id,nombre:fruta.nombre+" (Fruta)",unidad:fruta.unidad,cantidad:+formM.cantidad,motivo:formM.motivo,notas:formM.notas,costoEstimado:fruta.precio*+formM.cantidad,antes:fruta.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
                   setMermas(m=>[merma,...m].slice(0,300));
                   setFormM({productoId:"",cantidad:"",motivo:"Mala calidad",notas:""});
+                  setModal(null);
+                }} style={{...btnP,flex:2,background:"linear-gradient(135deg,#a78bfa,#ec4899)"}}>Registrar merma</button>
+              </div>
+            </>}
+
+            {/* Merma Mezcla */}
+            {modal==="merma_mezcla"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#a78bfa"}}>📉 Merma de Mezcla</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div><label style={lbl}>Mezcla</label>
+                  <select value={formM.productoId} onChange={e=>setFormM(f=>({...f,productoId:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+                    <option value="">Selecciona...</option>
+                    {mezclas.map(m=><option key={m.id} value={"mezcla_"+m.id}>{m.emoji} {m.nombre} ({m.sobrante}L)</option>)}
+                  </select>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Cantidad perdida (L)*</label><input type="number" min="0" step="0.5" placeholder="0" value={formM.cantidad} onChange={e=>setFormM(f=>({...f,cantidad:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Motivo</label><select value={formM.motivo} onChange={e=>setFormM(f=>({...f,motivo:e.target.value}))} style={{...inp,cursor:"pointer"}}>{MOTIVOS_MERMA.map(m=><option key={m}>{m}</option>)}</select></div>
+                </div>
+                <div><label style={lbl}>Notas</label><input placeholder="Ej. Se venció..." value={formM.notas} onChange={e=>setFormM(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={()=>{
+                  const id = +formM.productoId.replace("mezcla_","");
+                  const mezcla = mezclas.find(m=>m.id===id);
+                  if(!mezcla||!formM.cantidad) return;
+                  const nuevaSob = Math.max(0, mezcla.sobrante - +formM.cantidad);
+                  setMezclas(ms=>ms.map(m=>m.id===id?{...m,sobrante:nuevaSob}:m));
+                  const merma = {id:Date.now(),productoId:"mezcla_"+id,nombre:mezcla.nombre+" (Mezcla)",unidad:"L",cantidad:+formM.cantidad,motivo:formM.motivo,notas:formM.notas,costoEstimado:0,antes:mezcla.sobrante,despues:nuevaSob,fecha:new Date().toISOString()};
+                  setMermas(m=>[merma,...m].slice(0,300));
+                  setFormM({productoId:"",cantidad:"",motivo:"Caducidad",notas:""});
                   setModal(null);
                 }} style={{...btnP,flex:2,background:"linear-gradient(135deg,#a78bfa,#ec4899)"}}>Registrar merma</button>
               </div>
