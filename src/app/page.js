@@ -507,6 +507,37 @@ export default function App() {
       setHistorial(rH.data ? rH.data.map(dbToMovimiento) : []);
       setMermas(rM.data ? rM.data.map(dbToMerma) : []);
       setProveedores(rPv.data ? rPv.data.map(dbToProveedor) : []);
+
+      // Cargar frutas y mezclas desde Supabase
+      const [rFrutas, rMezclas] = await Promise.all([
+        supabase.from("frutas_estado").select("*").order("id"),
+        supabase.from("mezclas_estado").select("*").order("id"),
+      ]);
+      if (rFrutas.data && rFrutas.data.length > 0) {
+        setFrutas(FRUTAS_INICIALES.map(f => {
+          const db = rFrutas.data.find(r => r.id === f.id);
+          return db ? {...f, cantidad: db.cantidad, estado: db.estado, fechaCompra: db.fecha_compra||"", precio: db.precio||0, minimo: db.minimo||0, minimoFS: db.minimo_fs||0, notas: db.notas||""} : f;
+        }));
+      } else {
+        // Primera vez: insertar frutas iniciales
+        await supabase.from("frutas_estado").insert(FRUTAS_INICIALES.map(f => ({
+          id: f.id, nombre: f.nombre, emoji: f.emoji, unidad: f.unidad,
+          cantidad: 0, estado: "Fresca", fecha_compra: "", precio: 0,
+          minimo: 0, minimo_fs: 0, notas: ""
+        })));
+      }
+      if (rMezclas.data && rMezclas.data.length > 0) {
+        setMezclas(MEZCLAS_INICIALES.map(m => {
+          const db = rMezclas.data.find(r => r.id === m.id);
+          return db ? {...m, sobrante: db.sobrante||0, optimoSemana: db.optimo_semana||0, optimoFS: db.optimo_fs||0, notas: db.notas||"", fechaRegistro: db.fecha_registro||""} : m;
+        }));
+      } else {
+        // Primera vez: insertar mezclas iniciales
+        await supabase.from("mezclas_estado").insert(MEZCLAS_INICIALES.map(m => ({
+          id: m.id, nombre: m.nombre, emoji: m.emoji,
+          sobrante: 0, optimo_semana: 0, optimo_fs: 0, notas: "", fecha_registro: null
+        })));
+      }
       const modoConf = rConf.data?.find(c => c.clave === "modo");
       setModoFinSemana(modoConf?.valor === "finsemana");
     } catch(e) { console.error("Error cargando datos:", e); }
@@ -1060,16 +1091,16 @@ export default function App() {
                       <div style={{fontWeight:"700",fontSize:"14px"}}>{f.nombre}</div>
                       <div style={{display:"flex",gap:"6px",marginTop:"4px",flexWrap:"wrap"}}>
                         {["Fresca","Regular","Por usar"].map(e=>(
-                          <button key={e} onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,estado:e}:x))} style={{padding:"2px 8px",borderRadius:"6px",border:"none",cursor:"pointer",fontSize:"10px",fontWeight:"600",fontFamily:"inherit",background:f.estado===e?(e==="Fresca"?"#22c55e30":e==="Regular"?"#f59e0b30":"#ef444430"):"#ffffff10",color:f.estado===e?(e==="Fresca"?C.success:e==="Regular"?C.warn:C.danger):C.muted}}>{e}</button>
+                          <button key={e} onClick={async()=>{setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,estado:e}:x));await supabase.from("frutas_estado").update({estado:e,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{padding:"2px 8px",borderRadius:"6px",border:"none",cursor:"pointer",fontSize:"10px",fontWeight:"600",fontFamily:"inherit",background:f.estado===e?(e==="Fresca"?"#22c55e30":e==="Regular"?"#f59e0b30":"#ef444430"):"#ffffff10",color:f.estado===e?(e==="Fresca"?C.success:e==="Regular"?C.warn:C.danger):C.muted}}>{e}</button>
                         ))}
                       </div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>CANTIDAD</div>
                       <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
-                        <button onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:Math.max(0,x.cantidad-1)}:x))} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
+                        <button onClick={async()=>{const nv=Math.max(0,Math.round((f.cantidad-0.5)*10)/10);setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:nv}:x));await supabase.from("frutas_estado").update({cantidad:nv,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
                         <div style={{background:bajoStock?"#f59e0b20":"#6ee7b720",border:`1px solid ${bajoStock?C.warn+"40":C.accent+"40"}`,borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:bajoStock?C.warn:C.accent,fontSize:"13px",minWidth:"64px",textAlign:"center"}}>{f.cantidad} {f.unidad}</div>
-                        <button onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:x.cantidad+1}:x))} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
+                        <button onClick={async()=>{const nv=Math.round((f.cantidad+0.5)*10)/10;setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:nv}:x));await supabase.from("frutas_estado").update({cantidad:nv,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
                       </div>
                     </div>
                     <div style={{textAlign:"center",fontSize:"10px",color:C.muted}}>
@@ -1144,9 +1175,9 @@ export default function App() {
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>SOBRANTE</div>
                       <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
-                        <button onClick={()=>setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:Math.max(0,x.sobrante-0.5)}:x))} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>−</button>
+                        <button onClick={async()=>{const nv=Math.max(0,m.sobrante-0.5);setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>−</button>
                         <div style={{background:"#6ee7b720",border:"1px solid #6ee7b740",borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:C.accent,fontSize:"13px",minWidth:"60px",textAlign:"center"}}>{m.sobrante}L</div>
-                        <button onClick={()=>setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:x.sobrante+0.5}:x))} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>+</button>
+                        <button onClick={async()=>{const nv=m.sobrante+0.5;setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>+</button>
                       </div>
                     </div>
                     <div style={{textAlign:"center",minWidth:"80px"}}>
@@ -1510,7 +1541,18 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
               <button onClick={()=>setModalMezcla(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
-              <button onClick={()=>{setMezclas(ms=>ms.map(x=>x.id===editandoMezcla?{...formMezcla,fechaRegistro:new Date().toISOString()}:x));setModalMezcla(false);}} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+              <button onClick={async()=>{
+                const fechaReg = new Date().toISOString();
+                setMezclas(ms=>ms.map(x=>x.id===editandoMezcla?{...formMezcla,fechaRegistro:fechaReg}:x));
+                await supabase.from("mezclas_estado").update({
+                  sobrante: formMezcla.sobrante||0,
+                  optimo_semana: formMezcla.optimoSemana||0,
+                  optimo_fs: formMezcla.optimoFS||0,
+                  notas: formMezcla.notas||"",
+                  fecha_registro: fechaReg
+                }).eq("id", editandoMezcla);
+                setModalMezcla(false);
+              }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
             </div>
           </div>
         </div>
@@ -1535,7 +1577,16 @@ export default function App() {
             </div>
             <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
               <button onClick={()=>setModalFruta(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
-              <button onClick={()=>{setFrutas(fr=>fr.map(x=>x.id===editandoFruta?{...formFruta}:x));setModalFruta(false);}} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+              <button onClick={async()=>{
+                setFrutas(fr=>fr.map(x=>x.id===editandoFruta?{...formFruta}:x));
+                await supabase.from("frutas_estado").update({
+                  cantidad: formFruta.cantidad, estado: formFruta.estado,
+                  fecha_compra: formFruta.fechaCompra||"", precio: formFruta.precio||0,
+                  minimo: formFruta.minimo||0, minimo_fs: formFruta.minimoFS||0,
+                  notas: formFruta.notas||"", actualizado_en: new Date().toISOString()
+                }).eq("id", editandoFruta);
+                setModalFruta(false);
+              }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
             </div>
           </div>
         </div>
