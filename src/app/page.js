@@ -428,6 +428,7 @@ export default function App() {
   const [provRecepcion, setProvRecepcion] = useState("Todos");
   const [cantRecepcion, setCantRecepcion] = useState({});
   const [busqRecepcion, setBusqRecepcion] = useState("");
+  const [tipoRecepcion, setTipoRecepcion] = useState("entrada");
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
@@ -551,6 +552,40 @@ export default function App() {
     setCantRecepcion({});
     setModalRecepcion(false);
     alert("✅ Pedido recibido y actualizado correctamente");
+  }
+
+  async function confirmarSalida() {
+    const updates = [];
+    const movimientos = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcion)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const prod = productos.find(p => p.id === id);
+      if (!prod) continue;
+      const nuevaCant = Math.max(0, prod.cantidad - +cant);
+      updates.push(supabase.from("inventario").update({cantidad: nuevaCant}).eq("id", id));
+      movimientos.push(supabase.from("historial").insert({
+        id: Date.now() + id,
+        producto_id: id,
+        nombre: prod.nombre,
+        unidad: prod.unidad,
+        tipo: "consumo",
+        cantidad: +cant,
+        antes: prod.cantidad,
+        despues: nuevaCant,
+        fecha: new Date().toISOString()
+      }));
+    }
+    await Promise.all([...updates, ...movimientos]);
+    const nuevosProductos = productos.map(p => {
+      const cant = cantRecepcion[p.id];
+      if (!cant || +cant <= 0) return p;
+      return {...p, cantidad: Math.max(0, p.cantidad - +cant)};
+    });
+    setProductos(nuevosProductos);
+    setCantRecepcion({});
+    setModalRecepcion(false);
+    alert("✅ Salida registrada correctamente");
   }
 
   async function guardarProducto() {
@@ -1184,8 +1219,15 @@ export default function App() {
       {modalRecepcion&&(
         <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
           <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
-            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"4px",color:"#6ee7b7"}}>📦 Recibir pedido</div>
-            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa la cantidad que llegó de cada producto</div>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>{tipoRecepcion==="entrada"?"📦 Recibir pedido":"📤 Registrar salida"}</div>
+            
+            {/* Pestañas */}
+            <div style={{display:"flex",gap:"6px",marginBottom:"14px",background:"#12151e",borderRadius:"10px",padding:"4px"}}>
+              <button onClick={()=>{setTipoRecepcion("entrada");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="entrada"?"linear-gradient(135deg,#6ee7b7,#3b82f6)":"transparent",color:tipoRecepcion==="entrada"?"#0f1117":"#8b90a0"}}>📦 Entrada</button>
+              <button onClick={()=>{setTipoRecepcion("salida");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="salida"?"linear-gradient(135deg,#f59e0b,#ef4444)":"transparent",color:tipoRecepcion==="salida"?"#0f1117":"#8b90a0"}}>📤 Salida</button>
+            </div>
+            
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>{tipoRecepcion==="entrada"?"Ingresa la cantidad que llegó de cada producto":"Ingresa la cantidad que sale del inventario"}</div>
             
             <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
               <input 
@@ -1230,8 +1272,8 @@ export default function App() {
             )}
 
             <div id="recepcion-bottom" style={{display:"flex",gap:"8px"}}>
-              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});setBusqRecepcion("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
-              <button onClick={confirmarRecepcion} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar recepción</button>
+              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});setBusqRecepcion("");setTipoRecepcion("entrada");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={tipoRecepcion==="entrada"?confirmarRecepcion:confirmarSalida} style={{background:tipoRecepcion==="entrada"?"linear-gradient(135deg,#6ee7b7,#3b82f6)":"linear-gradient(135deg,#f59e0b,#ef4444)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>{tipoRecepcion==="entrada"?"✅ Confirmar entrada":"📤 Confirmar salida"}</button>
             </div>
           </div>
         </div>
