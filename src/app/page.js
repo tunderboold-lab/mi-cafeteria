@@ -427,6 +427,7 @@ export default function App() {
   const [modalRecepcion, setModalRecepcion] = useState(false);
   const [provRecepcion, setProvRecepcion] = useState("Todos");
   const [cantRecepcion, setCantRecepcion] = useState({});
+  const [busqRecepcion, setBusqRecepcion] = useState("");
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
@@ -1186,12 +1187,21 @@ export default function App() {
             <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"4px",color:"#6ee7b7"}}>📦 Recibir pedido</div>
             <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa la cantidad que llegó de cada producto</div>
             
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input 
+                placeholder="🔍 Buscar producto..." 
+                value={busqRecepcion}
+                onChange={e=>setBusqRecepcion(e.target.value)}
+                style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}
+              />
+              <button onClick={()=>document.getElementById("recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}} title="Ir al final">⬇️</button>
+            </div>
 
 
             {/* Lista de productos */}
             <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
               {productos
-                .filter(p => true)
+                .filter(p => !busqRecepcion || p.nombre.toLowerCase().includes(busqRecepcion.toLowerCase()))
                 .map(p=>(
                 <div key={p.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
                   <span style={{fontSize:"18px"}}>{p.emoji}</span>
@@ -1219,8 +1229,8 @@ export default function App() {
               </div>
             )}
 
-            <div style={{display:"flex",gap:"8px"}}>
-              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+            <div id="recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});setBusqRecepcion("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
               <button onClick={confirmarRecepcion} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar recepción</button>
             </div>
           </div>
