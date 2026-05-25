@@ -554,7 +554,7 @@ export default function App() {
     setModal(null); setAjusteItem(null); setAjusteDelta("");
   }
 
-  const TU_NUMERO = "525544690495"; // Cambia esto por tu número con código de país
+  const TU_NUMERO = "5215544690495";
 
   function cerrarDiaFrutas() {
     const fs = esFindeSemana();
@@ -702,9 +702,7 @@ export default function App() {
         : (freshDataRef.current?.proveedor || "");
       const nueva = productos.map(p=>p.id===editando?{...p,...fp,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
       setProductos(nueva);
-      alert("Guardando ID: " + editando + " | proveedor: " + updateData.proveedor + " | ubicacion: " + updateData.ubicacion);
-      const {error, data} = await supabase.from("inventario").update(updateData).eq("id",editando).select();
-      alert("Resultado: " + JSON.stringify(data) + " | Error: " + JSON.stringify(error));
+      await supabase.from("inventario").update(updateData).eq("id",editando);
     } else {
       const id = Date.now();
       const prod = {...fp, id, cantidad:+fp.cantidad, minimo:+fp.minimo, maximo:+fp.maximo||0, optimo:+fp.optimo||0, costo:+fp.costo||0, cantComprar};
