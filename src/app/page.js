@@ -537,7 +537,7 @@ export default function App() {
     setModal(null); setAjusteItem(null); setAjusteDelta("");
   }
 
-  const TU_NUMERO = "521XXXXXXXXXX"; // Cambia esto por tu número con código de país
+  const TU_NUMERO = "525544690495"; // Cambia esto por tu número con código de país
 
   function cerrarDiaFrutas() {
     const fs = esFindeSemana();
