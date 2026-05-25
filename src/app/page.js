@@ -12,7 +12,7 @@ const CATEGORIAS = [
 
 const UNIDADES = ["kg","g","L","mL","pzas","cajas","bolsas","paquetes","rollos","litros"];
 const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación","Robo / Pérdida","Mala calidad","Otro"];
-const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
+const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mezclas",label:"Mezclas",icon:"🧁"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
 
 
 const PRODUCTOS_INICIALES = [
@@ -407,6 +407,19 @@ const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", can
 const esFindeSemana = () => { const dia = new Date().getDay(); return dia === 0 || dia === 5 || dia === 6; };
 const getMinimoActivo = (p) => { const fs = esFindeSemana(); return (fs && p.minimoFS > 0) ? p.minimoFS : p.minimo; };
 
+const MEZCLAS_INICIALES = [
+  {id:1,nombre:"Waffles",emoji:"🧇",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:2,nombre:"Crepas",emoji:"🥞",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:3,nombre:"Mini Hot Cakes",emoji:"🥞",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:4,nombre:"Fresas con Crema",emoji:"🍓",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:5,nombre:"Crema Ferrero",emoji:"🍫",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:6,nombre:"Crema Rafaelo",emoji:"🍬",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:7,nombre:"Crema Batida",emoji:"🍦",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:8,nombre:"Tapioca",emoji:"🧋",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:9,nombre:"Base para Frappes",emoji:"🥤",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:10,nombre:"Mezcla Banderillas Coreanas",emoji:"🍢",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+];
+
 const FRUTAS_INICIALES = [
   {id:1,nombre:"Fresa",emoji:"🍓",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
   {id:2,nombre:"Plátano",emoji:"🍌",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
@@ -447,6 +460,10 @@ export default function App() {
   const [ajusteDelta, setAjusteDelta] = useState("");
   const [pinOk, setPinOk] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [mezclas, setMezclas] = useState(MEZCLAS_INICIALES);
+  const [modalMezcla, setModalMezcla] = useState(false);
+  const [editandoMezcla, setEditandoMezcla] = useState(null);
+  const [formMezcla, setFormMezcla] = useState(null);
   const [frutas, setFrutas] = useState(FRUTAS_INICIALES);
   const [modalFruta, setModalFruta] = useState(false);
   const [editandoFruta, setEditandoFruta] = useState(null);
@@ -1075,6 +1092,74 @@ export default function App() {
         </div>
       )}
 
+      {/* ===== MEZCLAS ===== */}
+      {tab==="mezclas"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>🧁 Control de Mezclas</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Sobrante del día y producción para mañana</div>
+            </div>
+            <button onClick={()=>{
+              const mañana = new Date();
+              mañana.setDate(mañana.getDate()+1);
+              const esMañanaFS = [0,5,6].includes(mañana.getDay());
+              let msg = "🧁 *CIERRE DE MEZCLAS* " + new Date().toLocaleDateString("es-MX") + "\n\n";
+              msg += "📦 *SOBRANTE HOY:*\n";
+              mezclas.forEach(m=>{
+                const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
+                const producir = Math.max(0, optimo - m.sobrante);
+                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}L sobrante`;
+                if(producir>0) msg += ` _(producir ${producir}L mañana)_`;
+                msg += "\n";
+              });
+              const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
+              window.open(url,"_blank");
+            }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+          </div>
+
+          <div style={{display:"grid",gap:"8px"}}>
+            {mezclas.map(m=>{
+              const mañana = new Date();
+              mañana.setDate(mañana.getDate()+1);
+              const esMañanaFS = [0,5,6].includes(mañana.getDay());
+              const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
+              const producir = Math.max(0, optimo - m.sobrante);
+              return(
+                <div key={m.id} style={{background:C.card,border:`1px solid ${producir>0?C.warn+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <span style={{fontSize:"24px"}}>{m.emoji}</span>
+                    <div style={{flex:1,minWidth:"120px"}}>
+                      <div style={{fontWeight:"700",fontSize:"14px"}}>{m.nombre}</div>
+                      <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
+                        Óptimo: <span style={{color:C.info}}>{optimo}L</span>
+                        {m.fechaRegistro&&<span> · 📅 {new Date(m.fechaRegistro).toLocaleDateString("es-MX")}</span>}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>SOBRANTE</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <button onClick={()=>setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:Math.max(0,x.sobrante-0.5)}:x))} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>−</button>
+                        <div style={{background:"#6ee7b720",border:"1px solid #6ee7b740",borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:C.accent,fontSize:"13px",minWidth:"60px",textAlign:"center"}}>{m.sobrante}L</div>
+                        <button onClick={()=>setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:x.sobrante+0.5}:x))} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>+</button>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center",minWidth:"80px"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>PRODUCIR MAÑANA</div>
+                      <div style={{background:producir>0?"#f59e0b20":"#22c55e20",border:`1px solid ${producir>0?C.warn+"40":C.success+"40"}`,borderRadius:"7px",padding:"4px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"700",color:producir>0?C.warn:C.success,fontSize:"14px",textAlign:"center"}}>
+                        {producir>0?`${producir}L`:"✅"}
+                      </div>
+                    </div>
+                    <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                  </div>
+                  {m.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"8px",fontStyle:"italic",paddingLeft:"34px"}}>💬 {m.notas}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ===== MERMAS ===== */}
       {tab==="mermas"&&(
         <div style={{padding:"0 16px 24px"}}>
@@ -1366,6 +1451,27 @@ export default function App() {
               <button onClick={cerrarScanner} style={{...btnG,width:"100%"}}>Cerrar cámara</button>
             </>}
 
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL MEZCLA ===== */}
+      {modalMezcla&&formMezcla&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>✏️ {formMezcla.nombre}</div>
+            <div style={{display:"grid",gap:"12px"}}>
+              <div><label style={lbl}>Sobrante de hoy (L)</label><input type="number" min="0" step="0.5" value={formMezcla.sobrante} onChange={e=>setFormMezcla(f=>({...f,sobrante:+e.target.value,fechaRegistro:new Date().toISOString()}))} style={inp}/></div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Óptimo semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoSemana} onChange={e=>setFormMezcla(f=>({...f,optimoSemana:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Óptimo fin de semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoFS} onChange={e=>setFormMezcla(f=>({...f,optimoFS:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div><label style={lbl}>Notas</label><input placeholder="Ej. Quedó muy espesa..." value={formMezcla.notas} onChange={e=>setFormMezcla(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+              <button onClick={()=>setModalMezcla(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={()=>{setMezclas(ms=>ms.map(x=>x.id===editandoMezcla?{...formMezcla,fechaRegistro:new Date().toISOString()}:x));setModalMezcla(false);}} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+            </div>
           </div>
         </div>
       )}
