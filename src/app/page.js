@@ -12,7 +12,7 @@ const CATEGORIAS = [
 
 const UNIDADES = ["kg","g","L","mL","pzas","cajas","bolsas","paquetes","rollos","litros"];
 const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación","Robo / Pérdida","Mala calidad","Otro"];
-const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
+const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
 
 
 const PRODUCTOS_INICIALES = [
@@ -356,7 +356,7 @@ const PRODUCTOS_INICIALES = [
 function productoToDb(p) {
   return {
     id: p.id, nombre: p.nombre, barcode: p.barcode||"", categoria: p.categoria,
-    cantidad: p.cantidad, unidad: p.unidad, minimo: p.minimo, maximo: p.maximo||0,
+    cantidad: p.cantidad, unidad: p.unidad, minimo: p.minimo, minimo_fs: p.minimoFS||0, maximo: p.maximo||0,
     optimo: p.optimo||0, cant_comprar: p.cantComprar||0, proveedor: p.proveedor||"",
     costo: p.costo||0, ubicacion: p.ubicacion||"", caducidad: p.caducidad||"",
     emoji: p.emoji||"📦", es_variable: p.esVariable||false,
@@ -366,7 +366,7 @@ function productoToDb(p) {
 function dbToProducto(r) {
   return {
     id: r.id, nombre: r.nombre, barcode: r.barcode||"", categoria: r.categoria,
-    cantidad: r.cantidad, unidad: r.unidad, minimo: r.minimo, maximo: r.maximo||0,
+    cantidad: r.cantidad, unidad: r.unidad, minimo: r.minimo, minimoFS: r.minimo_fs||0, maximo: r.maximo||0,
     optimo: r.optimo||0, cantComprar: r.cant_comprar||0, proveedor: r.proveedor||"",
     costo: r.costo||0, ubicacion: r.ubicacion||"", caducidad: r.caducidad||"",
     emoji: r.emoji||"📦", esVariable: r.es_variable||false,
@@ -391,8 +391,9 @@ function dbToProveedor(r) {
 
 
 const statusInfo = p => {
+  const minActivo = getMinimoActivo(p);
   if (p.cantidad === 0) return { color:"#ef4444", bg:"#ef444415", label:"Agotado", icon:"🚫" };
-  if (p.cantidad <= p.minimo) return { color:"#f59e0b", bg:"#f59e0b15", label:"Stock bajo", icon:"⚠️" };
+  if (p.cantidad <= minActivo) return { color:"#f59e0b", bg:"#f59e0b15", label:"Stock bajo", icon:"⚠️" };
   if (p.cantidad <= p.optimo) return { color:"#60a5fa", bg:"#60a5fa15", label:"Óptimo bajo", icon:"📊" };
   return { color:"#22c55e", bg:"#22c55e15", label:"OK", icon:"✅" };
 };
@@ -400,7 +401,29 @@ const statusInfo = p => {
 const fmt = iso => new Date(iso).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 const diasParaCaducar = fecha => fecha ? Math.ceil((new Date(fecha) - new Date()) / 86400000) : null;
 
-const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", cantidad:"", unidad:"pzas", minimo:"", maximo:"", optimo:"", proveedor:"", costo:"", ubicacion:"", caducidad:"", emoji:"📦", esVariable:false, presentacion:"", costoPresentacion:"" };
+const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", cantidad:"", unidad:"pzas", minimo:"", minimoFS:"", maximo:"", optimo:"", proveedor:"", costo:"", ubicacion:"", caducidad:"", emoji:"📦", esVariable:false, presentacion:"", costoPresentacion:"" };
+
+// Detectar si es fin de semana (viernes, sábado, domingo)
+const esFindeSemana = () => { const dia = new Date().getDay(); return dia === 0 || dia === 5 || dia === 6; };
+const getMinimoActivo = (p) => { const fs = esFindeSemana(); return (fs && p.minimoFS > 0) ? p.minimoFS : p.minimo; };
+
+const FRUTAS_INICIALES = [
+  {id:1,nombre:"Fresa",emoji:"🍓",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:2,nombre:"Plátano",emoji:"🍌",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:3,nombre:"Uva",emoji:"🍇",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:4,nombre:"Lechuga",emoji:"🥬",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:5,nombre:"Pepino",emoji:"🥒",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:6,nombre:"Limón",emoji:"🍋",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:7,nombre:"Zarzamora",emoji:"🫐",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:8,nombre:"Frambuesa",emoji:"🍓",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:9,nombre:"Mora",emoji:"🫐",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:10,nombre:"Piña",emoji:"🍍",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:11,nombre:"Champiñones",emoji:"🍄",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:12,nombre:"Mango",emoji:"🥭",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:13,nombre:"Kiwi",emoji:"🥝",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:14,nombre:"Sandía",emoji:"🍉",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:15,nombre:"Plátano macho",emoji:"🍌",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+];
 
 export default function App() {
   const [tab, setTab] = useState("inventario");
@@ -424,6 +447,10 @@ export default function App() {
   const [ajusteDelta, setAjusteDelta] = useState("");
   const [pinOk, setPinOk] = useState(false);
   const [pinInput, setPinInput] = useState("");
+  const [frutas, setFrutas] = useState(FRUTAS_INICIALES);
+  const [modalFruta, setModalFruta] = useState(false);
+  const [editandoFruta, setEditandoFruta] = useState(null);
+  const [formFruta, setFormFruta] = useState(null);
   const [modalRecepcion, setModalRecepcion] = useState(false);
   const [provRecepcion, setProvRecepcion] = useState("Todos");
   const [cantRecepcion, setCantRecepcion] = useState({});
@@ -601,6 +628,7 @@ export default function App() {
         cantidad: +fp.cantidad,
         unidad: fp.unidad,
         minimo: +fp.minimo,
+        minimo_fs: +fp.minimoFS || 0,
         maximo: +fp.maximo || 0,
         optimo: +fp.optimo || 0,
         cant_comprar: cantComprar,
@@ -686,7 +714,7 @@ export default function App() {
       txt+=`• ${p.emoji} ${p.nombre} | ${p.cantidad}/${p.optimo||"?"} ${p.unidad} | Mín:${p.minimo} Máx:${p.maximo} | Comprar:${p.cantComprar||0} | ${p.categoria} | ${p.proveedor||"Sin proveedor"} | ${p.ubicacion||"Sin ubicación"} | Costo:$${p.costo||0} | ${s.label}${p.caducidad?" | Cad:"+p.caducidad:""}\n`;
     });
     txt+=`\n--- PEDIDOS URGENTES ---\n`;
-    productos.filter(p=>p.cantidad<=p.minimo).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
+    productos.filter(p=>p.cantidad<=getMinimoActivo(p)).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${p.cantComprar||"?"} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
     txt+=`\n--- MERMAS (${mermas.length}) ---\n`;
     mermas.slice(0,100).forEach(m=>{txt+=`${fmt(m.fecha)} | ${m.nombre} | ${m.cantidad} ${m.unidad} | ${m.motivo} | $${m.costoEstimado?.toFixed(2)||0}\n`;});
     txt+=`\n--- HISTORIAL (${historial.length}) ---\n`;
@@ -703,7 +731,7 @@ export default function App() {
     return b&&c;
   });
 
-  const bajoStock = productos.filter(p=>p.cantidad<=p.minimo).length;
+  const bajoStock = productos.filter(p=>p.cantidad<=getMinimoActivo(p)).length;
   const totalMermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
   const proxCaducar = productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=7&&d>=0;}).length;
   const calcPresentaciones = (p) => {
@@ -714,7 +742,7 @@ export default function App() {
     const pres = Math.ceil((p.cantComprar||0) / unidadesPorPres);
     return { pres, costo: pres * p.costoPresentacion, unidadesPorPres };
   };
-  const gastoEstimado = productos.filter(p=>p.cantidad<=p.minimo).reduce((a,p)=>{
+  const gastoEstimado = productos.filter(p=>p.cantidad<=getMinimoActivo(p)).reduce((a,p)=>{
     const cp = calcPresentaciones(p);
     return a + (cp ? cp.costo : (p.cantComprar||0)*(p.costo||0));
   },0);
@@ -813,7 +841,7 @@ export default function App() {
                 const dias=diasParaCaducar(p.caducidad);
                 const cad=dias!==null&&dias<=7;
                 return(
-                  <div key={p.id} className="rh ti" style={{background:C.card,border:`1px solid ${cad?"#a78bfa40":p.cantidad<=p.minimo?s.color+"30":C.border}`,borderRadius:"11px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                  <div key={p.id} className="rh ti" style={{background:C.card,border:`1px solid ${cad?"#a78bfa40":p.cantidad<=getMinimoActivo(p)?s.color+"30":C.border}`,borderRadius:"11px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
                     <div style={{width:"36px",height:"36px",background:s.bg,borderRadius:"9px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"19px",flexShrink:0}}>{p.emoji||"📦"}</div>
                     <div style={{flex:"1",minWidth:"120px"}}>
                       <div style={{fontWeight:"600",fontSize:"13px"}}>{p.nombre}{p.esVariable&&<span style={{fontSize:"9px",background:"#f59e0b20",color:C.warn,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>VARIABLE</span>}</div>
@@ -896,8 +924,8 @@ export default function App() {
           </div>
 
           {/* Pedidos por proveedor */}
-          {[...new Set(productos.filter(p=>p.cantidad<=p.minimo).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
-            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=p.minimo);
+          {[...new Set(productos.filter(p=>p.cantidad<=getMinimoActivo(p)).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
+            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=getMinimoActivo(p));
             if(!items.length)return null;
             return(
               <div key={prov} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
@@ -925,7 +953,7 @@ export default function App() {
             );
           })}
 
-          {productos.filter(p=>p.cantidad<=p.minimo).length===0&&(
+          {productos.filter(p=>p.cantidad<=getMinimoActivo(p)).length===0&&(
             <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
               <div style={{fontSize:"36px",marginBottom:"10px"}}>✅</div>
               Todo el inventario está en niveles óptimos
@@ -950,6 +978,57 @@ export default function App() {
           )}
         </div>
           )}
+        </div>
+      )}
+
+      {/* ===== FRUTAS ===== */}
+      {tab==="frutas"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>🍓 Control de Frutas</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Estado, cantidad y precio del día</div>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gap:"8px"}}> 
+            {frutas.map(f=>{
+              const diasDesdeCompra = f.fechaCompra ? Math.floor((new Date()-new Date(f.fechaCompra))/86400000) : null;
+              const estadoColor = f.estado==="Fresca"?C.success:f.estado==="Regular"?C.warn:C.danger;
+              const minimoActivo = esFindeSemana() && f.minimoFS > 0 ? f.minimoFS : f.minimo;
+              const bajoStock = f.cantidad <= minimoActivo;
+              return(
+                <div key={f.id} style={{background:C.card,border:`1px solid ${bajoStock?estadoColor+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <span style={{fontSize:"24px"}}>{f.emoji}</span>
+                    <div style={{flex:1,minWidth:"120px"}}>
+                      <div style={{fontWeight:"700",fontSize:"14px"}}>{f.nombre}</div>
+                      <div style={{display:"flex",gap:"6px",marginTop:"4px",flexWrap:"wrap"}}>
+                        {["Fresca","Regular","Por usar"].map(e=>(
+                          <button key={e} onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,estado:e}:x))} style={{padding:"2px 8px",borderRadius:"6px",border:"none",cursor:"pointer",fontSize:"10px",fontWeight:"600",fontFamily:"inherit",background:f.estado===e?(e==="Fresca"?"#22c55e30":e==="Regular"?"#f59e0b30":"#ef444430"):"#ffffff10",color:f.estado===e?(e==="Fresca"?C.success:e==="Regular"?C.warn:C.danger):C.muted}}>{e}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>CANTIDAD</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <button onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:Math.max(0,x.cantidad-1)}:x))} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
+                        <div style={{background:bajoStock?"#f59e0b20":"#6ee7b720",border:`1px solid ${bajoStock?C.warn+"40":C.accent+"40"}`,borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:bajoStock?C.warn:C.accent,fontSize:"13px",minWidth:"64px",textAlign:"center"}}>{f.cantidad} {f.unidad}</div>
+                        <button onClick={()=>setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:x.cantidad+1}:x))} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center",fontSize:"10px",color:C.muted}}>
+                      {f.precio>0&&<div>💰 <span style={{color:C.accent,fontWeight:"600"}}>${f.precio}</span></div>}
+                      {diasDesdeCompra!==null&&<div>📅 {diasDesdeCompra}d</div>}
+                      {bajoStock&&<div style={{color:C.warn,fontWeight:"600"}}>⚠️ Pedir</div>}
+                    </div>
+                    <button onClick={()=>{setEditandoFruta(f.id);setFormFruta({...f});setModalFruta(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                  </div>
+                  {f.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"8px",fontStyle:"italic",paddingLeft:"34px"}}>💬 {f.notas}</div>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1103,7 +1182,8 @@ export default function App() {
                   <div><label style={lbl}>Unidad</label><select value={formP.unidad} onChange={e=>setFormP(f=>({...f,unidad:e.target.value}))} style={{...inp,cursor:"pointer"}}>{UNIDADES.map(u=><option key={u}>{u}</option>)}</select></div>
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
-                  <div><label style={lbl}>Mínimo *</label><input type="number" min="0" placeholder="0" value={formP.minimo} onChange={e=>setFormP(f=>({...f,minimo:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Mínimo semana</label><input type="number" min="0" placeholder="0" value={formP.minimo} onChange={e=>setFormP(f=>({...f,minimo:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Mínimo fin de semana</label><input type="number" min="0" placeholder="0" value={formP.minimoFS||""} onChange={e=>setFormP(f=>({...f,minimoFS:e.target.value}))} style={inp}/></div>
                   <div><label style={lbl}>Óptimo</label><input type="number" min="0" placeholder="0" value={formP.optimo} onChange={e=>setFormP(f=>({...f,optimo:e.target.value}))} style={inp}/></div>
                   <div><label style={lbl}>Máximo</label><input type="number" min="0" placeholder="0" value={formP.maximo} onChange={e=>setFormP(f=>({...f,maximo:e.target.value}))} style={inp}/></div>
                 </div>
@@ -1211,6 +1291,31 @@ export default function App() {
               <button onClick={cerrarScanner} style={{...btnG,width:"100%"}}>Cerrar cámara</button>
             </>}
 
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL FRUTA ===== */}
+      {modalFruta&&formFruta&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>✏️ Editar {formFruta.nombre}</div>
+            <div style={{display:"grid",gap:"12px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Cantidad</label><input type="number" min="0" value={formFruta.cantidad} onChange={e=>setFormFruta(f=>({...f,cantidad:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Precio del día ($)</label><input type="number" min="0" placeholder="0.00" value={formFruta.precio} onChange={e=>setFormFruta(f=>({...f,precio:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Mínimo semana</label><input type="number" min="0" value={formFruta.minimo} onChange={e=>setFormFruta(f=>({...f,minimo:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Mínimo fin de semana</label><input type="number" min="0" value={formFruta.minimoFS} onChange={e=>setFormFruta(f=>({...f,minimoFS:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div><label style={lbl}>Fecha de compra</label><input type="date" value={formFruta.fechaCompra} onChange={e=>setFormFruta(f=>({...f,fechaCompra:e.target.value}))} style={inp}/></div>
+              <div><label style={lbl}>Notas</label><input placeholder="Ej. Llegó muy madura..." value={formFruta.notas} onChange={e=>setFormFruta(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+              <button onClick={()=>setModalFruta(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={()=>{setFrutas(fr=>fr.map(x=>x.id===editandoFruta?{...formFruta}:x));setModalFruta(false);}} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+            </div>
           </div>
         </div>
       )}
