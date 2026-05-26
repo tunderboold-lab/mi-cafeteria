@@ -444,7 +444,7 @@ export default function App() {
   const [historial, setHistorial] = useState([]);
   const [mermas, setMermas] = useState([]);
   const [proveedores, setProveedores] = useState([]);
-  const [modoFinSemana, setModoFinSemana] = useState(false);
+  const modoFinSemana = esFindeSemana();
   const [modal, setModal] = useState(null);
   const [editando, setEditando] = useState(null);
   const [busqueda, setBusqueda] = useState("");
@@ -473,7 +473,7 @@ export default function App() {
   const [cantRecepcion, setCantRecepcion] = useState({});
   const [busqRecepcion, setBusqRecepcion] = useState("");
   const [tipoRecepcion, setTipoRecepcion] = useState("entrada");
-  const [usuario, setUsuario] = useState(() => localStorage.getItem("cafeteria_usuario") || "");
+  const [usuario, setUsuario] = useState("");
   const [modalUsuario, setModalUsuario] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
   const [pinUsuario, setPinUsuario] = useState("");
@@ -488,13 +488,16 @@ export default function App() {
   const [modalRecepcionMezclas, setModalRecepcionMezclas] = useState(false);
   const [cantRecepcionMezclas, setCantRecepcionMezclas] = useState({});
   const [busqRecepcionMezclas, setBusqRecepcionMezclas] = useState("");
+  const [comentarioCierre, setComentarioCierre] = useState("");
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
 
   useEffect(() => { 
-    cargar(); 
-    if (!localStorage.getItem("cafeteria_usuario")) setModalUsuario(true);
+    cargar();
+    const u = localStorage.getItem("cafeteria_usuario");
+    if (u) setUsuario(u);
+    else setModalUsuario(true);
   }, []);
 
   // Alertas caducidad al cargar
@@ -560,8 +563,7 @@ export default function App() {
       const rUsuarios = await supabase.from("usuarios").select("*").eq("activo", true).order("nombre");
       if (rUsuarios.data) setUsuarios(rUsuarios.data);
 
-      const modoConf = rConf.data?.find(c => c.clave === "modo");
-      setModoFinSemana(modoConf?.valor === "finsemana");
+      // Modo automático por día
     } catch(e) { console.error("Error cargando datos:", e); }
   }
 
@@ -571,11 +573,7 @@ export default function App() {
     setTimeout(()=>setGuardando(false),500);
   }
 
-  async function toggleModo() {
-    const nuevo = !modoFinSemana;
-    setModoFinSemana(nuevo);
-    await supabase.from("configuracion").upsert({clave:"modo", valor: nuevo ? "finsemana" : "semana"});
-  }
+  // Modo automático por día de la semana
 
   async function ajustarRapido(id, delta) {
     const prod = productos.find(p=>p.id===id); if (!prod) return;
@@ -896,21 +894,21 @@ export default function App() {
     return a + (cp ? cp.costo : (p.cantComprar||0)*(p.costo||0));
   },0);
 
-  const C={bg:"#0f1117",card:"#1a1d27",border:"#2a2d3a",accent:"#6ee7b7",text:"#e8eaf0",muted:"#8b90a0",warn:"#f59e0b",danger:"#ef4444",success:"#22c55e",info:"#60a5fa"};
-  const inp={width:"100%",background:"#12151e",border:`1px solid ${C.border}`,borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box"};
-  const lbl={fontSize:"11px",color:C.muted,textTransform:"uppercase",letterSpacing:"1.2px",display:"block",marginBottom:"5px",fontWeight:"600"};
-  const btnP={background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px"};
-  const btnG={background:C.card,border:`1px solid ${C.border}`,color:C.muted,padding:"9px 14px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px"};
+  const C={bg:"#060810",card:"#0d1117",border:"#1a2235",accent:"#7dd3fc",text:"#e2e8f0",muted:"#64748b",warn:"#fbbf24",danger:"#f87171",success:"#34d399",info:"#818cf8"};
+  const inp={width:"100%",background:"rgba(7,10,18,0.8)",border:"1px solid rgba(125,211,252,0.15)",borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box",backdropFilter:"blur(10px)"};
+  const lbl={fontSize:"10px",color:"#7dd3fc80",textTransform:"uppercase",letterSpacing:"2px",display:"block",marginBottom:"5px",fontWeight:"500"};
+  const btnP={background:"linear-gradient(135deg,#7dd3fc,#818cf8)",border:"none",color:"#060810",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"600",fontSize:"13px",boxShadow:"0 0 20px rgba(125,211,252,0.2)"};
+  const btnG={background:"rgba(13,17,23,0.8)",border:"1px solid rgba(125,211,252,0.15)",color:C.muted,padding:"9px 14px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",backdropFilter:"blur(10px)"};
 
   return (
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');*{box-sizing:border-box}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#2a2d3a;border-radius:4px}select option{background:#1a1d27}.rh:hover{background:#1f2235!important}.ti{transition:all 0.15s}`}</style>
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060810 0%,#080d1a 50%,#060810 100%)",color:C.text,fontFamily:"'Outfit','Segoe UI',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');*{box-sizing:border-box}body{background:#060810}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#7dd3fc,#818cf8);border-radius:4px}select option{background:#0d1117}.rh:hover{background:#0f1520!important;border-color:#7dd3fc30!important}.ti{transition:all 0.2s cubic-bezier(0.4,0,0.2,1)}@keyframes holo{0%,100%{border-color:#7dd3fc30}33%{border-color:#818cf830}66%{border-color:#34d39930}}.holo-border{animation:holo 4s ease-in-out infinite}@keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 #7dd3fc20}50%{box-shadow:0 0 20px 2px #7dd3fc15}}.glow{animation:pulse-glow 3s ease-in-out infinite}`}</style>
 
       {/* TOP BAR */}
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"0 16px",position:"sticky",top:0,zIndex:100}}>
+      <div style={{background:"rgba(6,8,16,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(125,211,252,0.1)",padding:"0 16px",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:"56px",gap:"8px"}}>
           <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
-            <div style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",borderRadius:"10px",width:"32px",height:"32px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",flexShrink:0}}>☕</div>
+            <div style={{background:"linear-gradient(135deg,#7dd3fc,#818cf8,#34d399)",borderRadius:"10px",width:"32px",height:"32px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",flexShrink:0,boxShadow:"0 0 15px rgba(125,211,252,0.3)"}}>☕</div>
             <div>
               <div style={{fontWeight:"700",fontSize:"14px"}}>Mi Cafetería</div>
               <div style={{fontSize:"10px",color:C.muted,letterSpacing:"1px",textTransform:"uppercase"}}>Inventario</div>
@@ -919,9 +917,7 @@ export default function App() {
           <div style={{display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}}>
             {guardando&&<span style={{fontSize:"10px",color:C.accent,opacity:0.8}}>● Guardando</span>}
             {usuario&&<button onClick={()=>{setInputUsuario(usuario);setModalUsuario(true);}} style={{...btnG,fontSize:"10px",padding:"4px 8px",color:"#a78bfa",borderColor:"#a78bfa30"}}>👤 {usuario}</button>}
-            <button onClick={toggleModo} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:modoFinSemana?"#f59e0b":C.muted,borderColor:modoFinSemana?"#f59e0b50":C.border}}>
-              {modoFinSemana?"🌅 Fin semana":"📅 Semana"}
-            </button>
+<div style={{fontSize:"11px",color:modoFinSemana?"#f59e0b":C.info,padding:"4px 8px",borderRadius:"6px",background:modoFinSemana?"#f59e0b15":"#60a5fa15"}}>{modoFinSemana?"🌅 Fin semana":"📅 Semana"}</div>
             <button onClick={()=>setModal("exportar")} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:C.accent,borderColor:"#6ee7b730"}}>📤</button>
             <button onClick={()=>{setProvRecepcion("Todos");setCantRecepcion({});setModalRecepcion(true);}} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:"#6ee7b7",borderColor:"#6ee7b730"}}>📦</button>
             <button onClick={()=>{setEditando(null);setFormP(FORM_VACIO);setModal("producto");}} style={{...btnP,padding:"7px 12px",fontSize:"13px"}}>＋</button>
@@ -946,7 +942,7 @@ export default function App() {
           {label:"Mermas mes",value:`$${totalMermasMes.toFixed(0)}`,icon:"📉",color:C.danger},
           {label:"Gasto pedido",value:`$${gastoEstimado.toFixed(0)}`,icon:"🛒",color:C.info},
         ].map((s,i)=>(
-          <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"10px 14px",flexShrink:0,minWidth:"100px"}}>
+          <div key={i} style={{background:"rgba(13,17,23,0.7)",border:`1px solid ${s.color}20`,borderRadius:"12px",padding:"10px 14px",flexShrink:0,minWidth:"100px",backdropFilter:"blur(10px)",boxShadow:`0 0 15px ${s.color}10`}}>
             <div style={{fontSize:"16px"}}>{s.icon}</div>
             <div style={{fontSize:"17px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.value}</div>
             <div style={{fontSize:"9px",color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginTop:"1px"}}>{s.label}</div>
@@ -991,7 +987,7 @@ export default function App() {
                 const dias=diasParaCaducar(p.caducidad);
                 const cad=dias!==null&&dias<=7;
                 return(
-                  <div key={p.id} className="rh ti" style={{background:C.card,border:`1px solid ${cad?"#a78bfa40":p.cantidad<=getMinimoActivo(p)?s.color+"30":C.border}`,borderRadius:"11px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                  <div key={p.id} className="rh ti" style={{background:"rgba(13,17,23,0.8)",border:`1px solid ${cad?"rgba(167,139,250,0.3)":p.cantidad<=getMinimoActivo(p)?s.color+"30":"rgba(125,211,252,0.08)"}`,borderRadius:"12px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",backdropFilter:"blur(10px)"}}>
                     <div style={{width:"36px",height:"36px",background:s.bg,borderRadius:"9px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"19px",flexShrink:0}}>{p.emoji||"📦"}</div>
                     <div style={{flex:"1",minWidth:"120px"}}>
                       <div style={{fontWeight:"600",fontSize:"13px"}}>{p.nombre}{p.esVariable&&<span style={{fontSize:"9px",background:"#f59e0b20",color:C.warn,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>VARIABLE</span>}</div>
@@ -1225,6 +1221,7 @@ export default function App() {
               mañana.setDate(mañana.getDate()+1);
               const esMañanaFS = [0,5,6].includes(mañana.getDay());
               let msg = "🧁 *CIERRE DE MEZCLAS* " + new Date().toLocaleDateString("es-MX") + "\n\n";
+              if(comentarioCierre) msg += "💬 *NOTA DEL DÍA:* " + comentarioCierre + "\n\n";
               msg += "📦 *SOBRANTE HOY:*\n";
               mezclas.forEach(m=>{
                 const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
@@ -1237,7 +1234,8 @@ export default function App() {
               window.open(url,"_blank");
             }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
           </div>
-          <div style={{marginBottom:"14px"}}>
+          <div style={{display:"grid",gap:"8px",marginBottom:"14px"}}>
+            <input placeholder="💬 Comentario del día (opcional — se enviará por WhatsApp)..." value={comentarioCierre} onChange={e=>setComentarioCierre(e.target.value)} style={{...inp,fontSize:"12px"}}/>
             <button onClick={()=>{setCantRecepcionMezclas({});setBusqRecepcionMezclas("");setModalRecepcionMezclas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px",width:"100%"}}>📦 Recibir producción del día</button>
           </div>
 
@@ -1595,8 +1593,8 @@ export default function App() {
 
       {/* ===== MODALES ===== */}
       {modal&&(
-        <div onClick={()=>modal!=="scanner"&&setModal(null)} style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+        <div onClick={()=>modal!=="scanner"&&setModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,5,15,0.85)",backdropFilter:"blur(8px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"rgba(8,12,22,0.95)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto",backdropFilter:"blur(20px)",boxShadow:"0 0 40px rgba(125,211,252,0.1)"}}>
 
             {/* Producto */}
             {modal==="producto"&&<>
