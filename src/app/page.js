@@ -481,6 +481,10 @@ export default function App() {
   const [errorLogin, setErrorLogin] = useState("");
   const [modalGestionUsuarios, setModalGestionUsuarios] = useState(false);
   const [formUsuario, setFormUsuario] = useState({nombre:"",pin:"",rol:"trabajador"});
+  const [editandoPin, setEditandoPin] = useState(null);
+  const [filtroUsuario, setFiltroUsuario] = useState("Todos");
+  const [nuevoPinInput, setNuevoPinInput] = useState("");
+  const [mostrandoPin, setMostrandoPin] = useState({});
   const [inputUsuario, setInputUsuario] = useState("");
   const [modalRecepcionFrutas, setModalRecepcionFrutas] = useState(false);
   const [cantRecepcionFrutas, setCantRecepcionFrutas] = useState({});
@@ -488,7 +492,7 @@ export default function App() {
   const [modalRecepcionMezclas, setModalRecepcionMezclas] = useState(false);
   const [cantRecepcionMezclas, setCantRecepcionMezclas] = useState({});
   const [busqRecepcionMezclas, setBusqRecepcionMezclas] = useState("");
-  const [comentarioCierre, setComentarioCierre] = useState("");
+
   const videoRef = useRef(null);
   const freshDataRef = useRef(null);
   const formPRef = useRef(FORM_VACIO);
@@ -1221,21 +1225,20 @@ export default function App() {
               mañana.setDate(mañana.getDate()+1);
               const esMañanaFS = [0,5,6].includes(mañana.getDay());
               let msg = "🧁 *CIERRE DE MEZCLAS* " + new Date().toLocaleDateString("es-MX") + "\n\n";
-              if(comentarioCierre) msg += "💬 *NOTA DEL DÍA:* " + comentarioCierre + "\n\n";
               msg += "📦 *SOBRANTE HOY:*\n";
               mezclas.forEach(m=>{
                 const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
                 const producir = Math.max(0, optimo - m.sobrante);
-                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}{m.unidad||"L"} sobrante`;
+                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}${m.unidad||"L"} sobrante`;
                 if(producir>0) msg += ` _(producir ${producir}${m.unidad||"L"} mañana)_`;
+                if(m.notas) msg += ` 💬 ${m.notas}`;
                 msg += "\n";
               });
               const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
               window.open(url,"_blank");
             }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
           </div>
-          <div style={{display:"grid",gap:"8px",marginBottom:"14px"}}>
-            <input placeholder="💬 Comentario del día (opcional — se enviará por WhatsApp)..." value={comentarioCierre} onChange={e=>setComentarioCierre(e.target.value)} style={{...inp,fontSize:"12px"}}/>
+          <div style={{marginBottom:"14px"}}>
             <button onClick={()=>{setCantRecepcionMezclas({});setBusqRecepcionMezclas("");setModalRecepcionMezclas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px",width:"100%"}}>📦 Recibir producción del día</button>
           </div>
 
@@ -1283,7 +1286,20 @@ export default function App() {
                       <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
                     </div>
                   </div>
-                  {m.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"8px",fontStyle:"italic",paddingLeft:"34px"}}>💬 {m.notas}</div>}
+                  <div style={{marginTop:"8px",paddingLeft:"0"}}>
+                    <input 
+                      placeholder="💬 Nota (ej: 1/2 bote, quedó espesa...)" 
+                      value={m.notas||""} 
+                      onChange={async(e)=>{
+                        const val = e.target.value;
+                        setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,notas:val}:x));
+                      }}
+                      onBlur={async(e)=>{
+                        await supabase.from("mezclas_estado").update({notas:e.target.value}).eq("id",m.id);
+                      }}
+                      style={{width:"100%",background:"rgba(7,10,18,0.5)",border:"1px solid rgba(125,211,252,0.1)",borderRadius:"8px",padding:"6px 10px",color:C.muted,fontFamily:"inherit",fontSize:"11px",outline:"none",fontStyle:m.notas?"normal":"italic"}}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -1344,15 +1360,25 @@ export default function App() {
       {/* ===== HISTORIAL ===== */}
       {tab==="historial"&&(
         <div style={{padding:"0 16px 24px"}}>
-          <div style={{fontWeight:"700",fontSize:"15px",marginBottom:"4px"}}>Historial de Movimientos</div>
-          <div style={{fontSize:"11px",color:C.muted,marginBottom:"14px"}}>Entradas, consumos, mermas y ajustes</div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"4px"}}>
+            <div style={{fontWeight:"700",fontSize:"15px"}}>Historial de Movimientos</div>
+          </div>
+          <div style={{display:"flex",gap:"8px",marginBottom:"14px",flexWrap:"wrap"}}>
+            <select value={filtroUsuario} onChange={e=>setFiltroUsuario(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontSize:"12px"}}>
+              <option value="Todos">👥 Todos los usuarios</option>
+              {[...new Set(historial.map(h=>h.usuario).filter(u=>u&&u!=="Desconocido"))].sort().map(u=>(
+                <option key={u} value={u}>👤 {u}</option>
+              ))}
+            </select>
+            <div style={{fontSize:"11px",color:C.muted,alignSelf:"center"}}>Entradas, consumos, mermas y ajustes</div>
+          </div>
           {historial.length===0?(
             <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
               <div style={{fontSize:"36px",marginBottom:"10px"}}>📭</div>Sin movimientos aún
             </div>
           ):(
             <div style={{display:"grid",gap:"6px"}}>
-              {historial.map(h=>{
+              {historial.filter(h=>filtroUsuario==="Todos"||(h.usuario||"")=== filtroUsuario).map(h=>{
                 const t={entrada:{icon:"📥",color:C.success,bg:"#22c55e15",label:"Entrada"},consumo:{icon:"📤",color:C.info,bg:"#3b82f615",label:"Consumo"},merma:{icon:"📉",color:"#a78bfa",bg:"#a78bfa15",label:"Merma"},ajuste:{icon:"🔧",color:C.warn,bg:"#f59e0b15",label:"Ajuste"}}[h.tipo]||{icon:"📋",color:C.muted,bg:"#ffffff10",label:h.tipo};
                 return(
                   <div key={h.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"9px",padding:"9px 13px",display:"flex",gap:"9px",alignItems:"center"}}>
@@ -1866,16 +1892,37 @@ export default function App() {
             {/* Lista de usuarios */}
             <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
               {usuarios.map(u=>(
-                <div key={u.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div>
-                    <div style={{fontSize:"13px",fontWeight:"600"}}>{u.nombre}</div>
-                    <div style={{fontSize:"10px",color:"#8b90a0"}}>PIN: {"•".repeat(u.pin.length)} · {u.rol==="admin"?"👑 Admin":"👤 Trabajador"}</div>
+                <div key={u.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:editandoPin===u.id?"8px":"0"}}>
+                    <div>
+                      <div style={{fontSize:"13px",fontWeight:"600"}}>{u.nombre}</div>
+                      <div style={{fontSize:"10px",color:"#8b90a0",display:"flex",alignItems:"center",gap:"6px"}}>
+                        <span>PIN: {mostrandoPin[u.id] ? u.pin : "•".repeat(u.pin.length)}</span>
+                        <button onClick={()=>setMostrandoPin(m=>({...m,[u.id]:!m[u.id]}))} style={{background:"none",border:"none",color:"#7dd3fc",cursor:"pointer",fontSize:"10px",padding:"0"}}>{mostrandoPin[u.id]?"🙈":"👁️"}</button>
+                        <span>· {u.rol==="admin"?"👑 Admin":u.rol==="gerente"?"🏆 Gerente":u.rol==="subgerente"?"⭐ Subgerente":"👤 Trabajador"}</span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      <button onClick={()=>{setEditandoPin(editandoPin===u.id?null:u.id);setNuevoPinInput("");}} style={{background:"#7dd3fc20",border:"none",color:"#7dd3fc",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"11px"}}>🔑 PIN</button>
+                      {u.rol!=="admin"&&(
+                        <button onClick={async()=>{
+                          await supabase.from("usuarios").update({activo:false}).eq("id",u.id);
+                          setUsuarios(us=>us.filter(x=>x.id!==u.id));
+                        }} style={{background:"#ef444420",border:"none",color:"#ef4444",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
+                      )}
+                    </div>
                   </div>
-                  {u.rol!=="admin"&&(
-                    <button onClick={async()=>{
-                      await supabase.from("usuarios").update({activo:false}).eq("id",u.id);
-                      setUsuarios(us=>us.filter(x=>x.id!==u.id));
-                    }} style={{background:"#ef444420",border:"none",color:"#ef4444",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
+                  {editandoPin===u.id&&(
+                    <div style={{display:"flex",gap:"6px"}}>
+                      <input type="password" placeholder="Nuevo PIN..." value={nuevoPinInput} onChange={e=>setNuevoPinInput(e.target.value)} style={{flex:1,background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"8px 12px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",letterSpacing:"4px"}}/>
+                      <button onClick={async()=>{
+                        if(!nuevoPinInput) return;
+                        await supabase.from("usuarios").update({pin:nuevoPinInput}).eq("id",u.id);
+                        setUsuarios(us=>us.map(x=>x.id===u.id?{...x,pin:nuevoPinInput}:x));
+                        setEditandoPin(null);
+                        setNuevoPinInput("");
+                      }} style={{background:"linear-gradient(135deg,#7dd3fc,#818cf8)",border:"none",color:"#060810",padding:"8px 14px",borderRadius:"8px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"12px"}}>Cambiar</button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -1890,6 +1937,8 @@ export default function App() {
                   <input type="password" placeholder="PIN" value={formUsuario.pin} onChange={e=>setFormUsuario(f=>({...f,pin:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",letterSpacing:"4px"}}/>
                   <select value={formUsuario.rol} onChange={e=>setFormUsuario(f=>({...f,rol:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",cursor:"pointer"}}>
                     <option value="trabajador">Trabajador</option>
+                    <option value="subgerente">Subgerente</option>
+                    <option value="gerente">Gerente</option>
                     <option value="admin">Admin</option>
                   </select>
                 </div>
