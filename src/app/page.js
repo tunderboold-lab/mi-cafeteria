@@ -35,6 +35,21 @@ const fmtGranel = (decimal, unidad) => {
   return `${entero} ${unidad} ${fraccion} ${uFrac}`;
 };
 
+// ===== RECETAS DE MEZCLAS =====
+// Mapea cada mezcla (por su ID) a sus ingredientes del inventario (por ID de inventario).
+// "cantidad" es lo que se gasta por UNA tanda, en la MISMA unidad que el producto en inventario.
+// Para agregar una receta nueva: copia el patrón usando el ID de la mezcla y los IDs de inventario de sus ingredientes.
+const RECETAS = {
+  4: { // Fresas con Crema
+    nombre: "Crema para Fresas",
+    ingredientes: [
+      { id: 10, cantidad: 1 },   // Lyncott (1 L)
+      { id: 9, cantidad: 1 },    // Lechera (1 pza)
+    ],
+  },
+};
+const tieneReceta = (mezclaId) => !!(RECETAS[mezclaId] && RECETAS[mezclaId].ingredientes && RECETAS[mezclaId].ingredientes.length > 0);
+
 const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mezclas",label:"Mezclas",icon:"🧁"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
 
 
@@ -154,6 +169,9 @@ export default function App() {
   const [modalMezcla, setModalMezcla] = useState(false);
   const [editandoMezcla, setEditandoMezcla] = useState(null);
   const [formMezcla, setFormMezcla] = useState(null);
+  const [modalProducir, setModalProducir] = useState(null);
+  const [tandasProducir, setTandasProducir] = useState("1");
+  const [produciendo, setProduciendo] = useState(false);
   const [frutas, setFrutas] = useState(FRUTAS_INICIALES);
   const [modalFruta, setModalFruta] = useState(false);
   const [editandoFruta, setEditandoFruta] = useState(null);
@@ -374,6 +392,59 @@ export default function App() {
     setCantRecepcionMezclas({});
     setModalRecepcionMezclas(false);
     alert("✅ Mezclas actualizadas correctamente");
+  }
+
+  // Descuenta del inventario todos los ingredientes de la receta de una mezcla
+  async function producirMezcla() {
+    if (!modalProducir || produciendo) return;
+    const receta = RECETAS[modalProducir.id];
+    if (!receta) return;
+    const tandas = Math.max(1, Math.floor(+tandasProducir || 1));
+
+    // Calcular lo que se necesita y validar que alcance
+    const faltantes = [];
+    const plan = [];
+    for (const ing of receta.ingredientes) {
+      const prod = productos.find(p => p.id === ing.id);
+      if (!prod) { faltantes.push(`Ingrediente ID ${ing.id} ya no existe en el inventario`); continue; }
+      const necesita = Math.round(ing.cantidad * tandas * 1000) / 1000;
+      if (prod.cantidad < necesita) {
+        faltantes.push(`${prod.nombre}: necesitas ${esGranel(prod)?fmtGranel(necesita,prod.unidad):`${necesita} ${prod.unidad}`}, solo hay ${esGranel(prod)?fmtGranel(prod.cantidad,prod.unidad):`${prod.cantidad} ${prod.unidad}`}`);
+      }
+      plan.push({ prod, necesita });
+    }
+
+    if (faltantes.length > 0) {
+      alert("🚫 No se puede producir, falta inventario:\n\n" + faltantes.join("\n"));
+      return;
+    }
+
+    setProduciendo(true);
+    const updates = [];
+    const movimientos = [];
+    const nuevosMovs = [];
+    let baseId = Date.now();
+    for (const { prod, necesita } of plan) {
+      const nuevaCant = Math.round((prod.cantidad - necesita) * 1000) / 1000;
+      const mov = { id: baseId++, productoId: prod.id, nombre: prod.nombre, unidad: prod.unidad, tipo: "consumo", cantidad: necesita, antes: prod.cantidad, despues: nuevaCant, fecha: new Date().toISOString(), usuario: (usuario||"Desconocido") + " · 🍳 " + (receta.nombre || modalProducir.nombre) + (tandas>1?` x${tandas}`:"") };
+      updates.push(supabase.from("inventario").update({ cantidad: nuevaCant }).eq("id", prod.id));
+      movimientos.push(supabase.from("historial").insert(movimientoToDb(mov)));
+      nuevosMovs.push(mov);
+    }
+    await Promise.all([...updates, ...movimientos]);
+
+    // Actualizar estado local
+    setProductos(ps => ps.map(p => {
+      const item = plan.find(x => x.prod.id === p.id);
+      if (!item) return p;
+      return { ...p, cantidad: Math.round((p.cantidad - item.necesita) * 1000) / 1000 };
+    }));
+    setHistorial(h => [...nuevosMovs, ...h].slice(0, 500));
+
+    setProduciendo(false);
+    setModalProducir(null);
+    setTandasProducir("1");
+    alert(`✅ ${receta.nombre || modalProducir.nombre} producida${tandas>1?` (${tandas} tandas)`:""}. Ingredientes descontados del inventario.`);
   }
 
   async function confirmarRecepcion() {
@@ -966,6 +1037,7 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{display:"flex",gap:"4px"}}>
+                      {tieneReceta(m.id)&&<button onClick={()=>{setModalProducir(m);setTandasProducir("1");}} style={{background:"#22c55e20",border:"none",color:C.success,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}} title="Producir (descuenta ingredientes)">🍳</button>}
                       <button onClick={()=>{setFormM({productoId:"mezcla_"+m.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma_mezcla");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>📉</button>
                       <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
                     </div>
@@ -1775,6 +1847,62 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* ===== MODAL PRODUCIR MEZCLA ===== */}
+      {modalProducir&&RECETAS[modalProducir.id]&&(()=>{
+        const receta = RECETAS[modalProducir.id];
+        const tandas = Math.max(1, Math.floor(+tandasProducir || 1));
+        const detalle = receta.ingredientes.map(ing => {
+          const prod = productos.find(p => p.id === ing.id);
+          const necesita = Math.round(ing.cantidad * tandas * 1000) / 1000;
+          const alcanza = prod ? prod.cantidad >= necesita : false;
+          return { ing, prod, necesita, alcanza };
+        });
+        const hayProblema = detalle.some(d => !d.prod || !d.alcanza);
+        return (
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:210,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"4px",color:C.success}}>🍳 Producir {modalProducir.emoji} {modalProducir.nombre}</div>
+            <div style={{fontSize:"11px",color:C.muted,marginBottom:"16px"}}>{receta.nombre} — descuenta los ingredientes del inventario</div>
+
+            <label style={lbl}>¿Cuántas tandas?</label>
+            <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
+              <button onClick={()=>setTandasProducir(String(Math.max(1,tandas-1)))} style={{background:"#ef444420",border:"none",color:C.danger,width:"34px",height:"34px",borderRadius:"8px",cursor:"pointer",fontSize:"18px"}}>−</button>
+              <input type="number" min="1" value={tandasProducir} onChange={e=>setTandasProducir(e.target.value)} style={{...inp,textAlign:"center",fontSize:"20px",fontFamily:"'DM Mono',monospace",flex:1}}/>
+              <button onClick={()=>setTandasProducir(String(tandas+1))} style={{background:"#22c55e20",border:"none",color:C.success,width:"34px",height:"34px",borderRadius:"8px",cursor:"pointer",fontSize:"18px"}}>+</button>
+            </div>
+
+            <div style={{fontSize:"10px",color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"8px"}}>Se descontará:</div>
+            <div style={{display:"grid",gap:"7px",marginBottom:"16px"}}>
+              {detalle.map(({ing,prod,necesita,alcanza})=>(
+                <div key={ing.id} style={{background:"#12151e",border:`1px solid ${alcanza?"#2a2d3a":"#ef444450"}`,borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{prod?.emoji||"❓"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{prod?prod.nombre:`(ID ${ing.id} no existe)`}</div>
+                    <div style={{fontSize:"10px",color:C.muted}}>Disponible: {prod?(esGranel(prod)?fmtGranel(prod.cantidad,prod.unidad):`${prod.cantidad} ${prod.unidad}`):"—"}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:"13px",fontWeight:"700",color:alcanza?C.accent:C.danger,fontFamily:"'DM Mono',monospace"}}>−{prod&&esGranel(prod)?fmtGranel(necesita,prod.unidad):`${necesita} ${prod?prod.unidad:""}`}</div>
+                    <div style={{fontSize:"9px",color:alcanza?C.success:C.danger}}>{alcanza?"✅ Alcanza":"🚫 Falta"}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hayProblema&&(
+              <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"11px",color:C.danger}}>
+                🚫 No alcanza el inventario para {tandas} tanda{tandas>1?"s":""}. Ajusta las tandas o recibe inventario primero.
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalProducir(null);setTandasProducir("1");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button disabled={hayProblema||produciendo} onClick={producirMezcla} style={{background:hayProblema||produciendo?"#2a2d3a":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",color:hayProblema||produciendo?"#64748b":"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:hayProblema||produciendo?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>{produciendo?"Descontando...":"🍳 Producir y descontar"}</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* ===== MODAL FRUTA ===== */}
       {modalFruta&&formFruta&&(
