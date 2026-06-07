@@ -12,345 +12,33 @@ const CATEGORIAS = [
 
 const UNIDADES = ["kg","g","L","mL","pzas","cajas","bolsas","paquetes","rollos","litros"];
 const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación","Robo / Pérdida","Mala calidad","Otro"];
+
+// ===== PRODUCTOS A GRANEL (formato kilos+gramos / litros+ml) =====
+// IDs de productos que se capturan con dos campos (entero + fracción).
+// Para agregar uno nuevo: solo mete su ID en esta lista.
+const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208];
+const esGranel = (p) => p && PRODUCTOS_GRANEL.includes(p.id) && (p.unidad === "kg" || p.unidad === "L");
+const unidadFraccion = (unidad) => unidad === "L" ? "ml" : "g";
+const decimalAPartes = (decimal) => {
+  const num = +decimal || 0;
+  const entero = Math.floor(num);
+  const fraccion = Math.round((num - entero) * 1000);
+  return { entero, fraccion };
+};
+const partesADecimal = (entero, fraccion) => {
+  return Math.round(((+entero || 0) + (+fraccion || 0) / 1000) * 1000) / 1000;
+};
+const fmtGranel = (decimal, unidad) => {
+  const { entero, fraccion } = decimalAPartes(decimal);
+  const uFrac = unidadFraccion(unidad);
+  if (fraccion === 0) return `${entero} ${unidad}`;
+  return `${entero} ${unidad} ${fraccion} ${uFrac}`;
+};
+
 const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mezclas",label:"Mezclas",icon:"🧁"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
 
 
-const PRODUCTOS_INICIALES = [
-  // Bebidas y Café
-  {id:1,nombre:"Café Soluble",barcode:"078742375540",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"☕"},
-  {id:2,nombre:"Leche Entera",barcode:"750053300418",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:3,nombre:"Leche de Avena",barcode:"750053300526",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:4,nombre:"Leche de Almendra",barcode:"750053300420",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:5,nombre:"Leche de Coco",barcode:"750053300459",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥥"},
-  {id:6,nombre:"Leche Deslactosada",barcode:"750053300419",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:7,nombre:"Leche Evaporada",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:8,nombre:"Leche en Polvo",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:9,nombre:"Lechera",barcode:"750647510472",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍯"},
-  {id:10,nombre:"Lyncott",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:11,nombre:"Sustituto de Crema",barcode:"750053300275",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:12,nombre:"Crema de Baileys",barcode:"750166861921",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍸"},
-  {id:13,nombre:"Baileys Licor",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍸"},
-  {id:14,nombre:"Coca Cola",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:15,nombre:"Pepsi",barcode:"750103131309",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:16,nombre:"7up",barcode:"7501022014554",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:17,nombre:"Sprite",barcode:"750105530480",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:18,nombre:"Mirinda",barcode:"750102201566",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:19,nombre:"Squirt",barcode:"750107112009",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:20,nombre:"Peñafiel",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:21,nombre:"Manzanita",barcode:"750102201546",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:22,nombre:"Iceee Cereza",barcode:"018804055133",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🧊"},
-  {id:23,nombre:"Iceee Mora Azul",barcode:"018804057182",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🧊"},
-  {id:24,nombre:"Yakult",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:25,nombre:"Nesquik Vainilla",barcode:"750105929638",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:26,nombre:"Leche de Fresa",barcode:"750105536263",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:27,nombre:"Roma",barcode:"750102600460",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"☕"},
-  // Polvos y Bases
-  {id:28,nombre:"P. Cappuccino",barcode:"750304411587",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"☕"},
-  {id:29,nombre:"P. Matcha",barcode:"8466700002438",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍵"},
-  {id:30,nombre:"P. Taro",barcode:"750304411588",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🟣"},
-  {id:31,nombre:"P. Horchata",barcode:"750303816115",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:32,nombre:"P. Mazapán",barcode:"750304439903",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:33,nombre:"P. Mora Azul",barcode:"750303881817",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🫐"},
-  {id:34,nombre:"P. Pistache",barcode:"707586718076",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🟢"},
-  {id:35,nombre:"P. Red Velvet",barcode:"707586718977",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"❤️"},
-  {id:36,nombre:"P. Cajeta",barcode:"750303816118",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍯"},
-  {id:37,nombre:"P. Caramelo",barcode:"750304411568",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍮"},
-  {id:38,nombre:"P. Chocolate Blanco",barcode:"750304411592",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🤍"},
-  {id:39,nombre:"P. Cookies",barcode:"750304411591",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍪"},
-  {id:40,nombre:"P. Crème Brulée",barcode:"750305176206",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍮"},
-  {id:41,nombre:"P. Coco",barcode:"750303816111",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🥥"},
-  {id:42,nombre:"P. Xocolatl",barcode:"750304935853",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:43,nombre:"P. Chocomenta",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍃"},
-  {id:44,nombre:"P. Chai Vainilla",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🫖"},
-  {id:45,nombre:"Polvo Flan",barcode:"750304050645",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍮"},
-  {id:46,nombre:"Harina de Trigo",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌾"},
-  {id:47,nombre:"Harina de Arroz",barcode:"055104001026",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌾"},
-  {id:48,nombre:"Harina Hotcakes",barcode:"750106921381",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🥞"},
-  {id:49,nombre:"Levadura Tradipan",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍞"},
-  {id:50,nombre:"Azúcar",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:51,nombre:"Azúcar Glass",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:52,nombre:"Mantequilla",barcode:"750101361007",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🧈"},
-  {id:53,nombre:"Galleta Lotus",barcode:"541012671601",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍪"},
-  {id:54,nombre:"Lotus Untable",barcode:"541012612689",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍪"},
-  {id:55,nombre:"Mermelada de Fresa",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:56,nombre:"Cajeta Coronado",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍯"},
-  {id:57,nombre:"Maple",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍁"},
-  {id:58,nombre:"Huevo",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥚"},
-  {id:59,nombre:"TadiPan",barcode:"017929111014",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍞"},
-  // Frutas y Frescos
-  {id:60,nombre:"Fresa (caja)",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍓",esVariable:true},
-  {id:61,nombre:"Frambuesa",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍓",esVariable:true},
-  {id:62,nombre:"Mora",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🫐",esVariable:true},
-  {id:63,nombre:"Zarzamora",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🫐",esVariable:true},
-  {id:64,nombre:"Arándanos",barcode:"681131077637",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🫐",esVariable:true},
-  {id:65,nombre:"Kiwi",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥝",esVariable:true},
-  {id:66,nombre:"Mango",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥭",esVariable:true},
-  {id:67,nombre:"Sandía",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍉",esVariable:true},
-  {id:68,nombre:"Piña",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍍",esVariable:true},
-  {id:69,nombre:"Uvas",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍇",esVariable:true},
-  {id:70,nombre:"Limón",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍋",esVariable:true},
-  {id:71,nombre:"Plátano",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍌",esVariable:true},
-  {id:72,nombre:"Pepino",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥒",esVariable:true},
-  {id:73,nombre:"Lechuga",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥬",esVariable:true},
-  {id:74,nombre:"Champiñones",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍄",esVariable:true},
-  {id:75,nombre:"Cerezas",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍒",esVariable:true},
-  {id:76,nombre:"Coco",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Anaquel",caducidad:"",emoji:"🥥"},
-  {id:77,nombre:"Danonino",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧁"},
-  {id:78,nombre:"Yogurt Griego",barcode:"750104009147",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥛"},
-  // Chocolates y Dulces
-  {id:79,nombre:"Ferrero Roché",barcode:"789802439533",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:80,nombre:"Kinder Bueno",barcode:"789742191824",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:81,nombre:"Kinder Chocolate",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:82,nombre:"Kinder Delice",barcode:"800050026710",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:83,nombre:"Kit Kat",barcode:"750105862991",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:84,nombre:"M&M's",barcode:"750227191764",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:85,nombre:"Nutella",barcode:"062020030306",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:86,nombre:"Hershey's Tableta",barcode:"750102459908",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:87,nombre:"Hershey's Líquido",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:88,nombre:"Carlos V",barcode:"750105863809",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:89,nombre:"Rafaello",barcode:"800050004133",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:90,nombre:"Mazapán",barcode:"724869100076",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:91,nombre:"Bubulubu",barcode:"757528023416",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:92,nombre:"Chocoretas",barcode:"757528023393",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:93,nombre:"Kranky",barcode:"757528023409",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:94,nombre:"Bombones Biachi",barcode:"724869003278",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:95,nombre:"Miguelito",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:96,nombre:"Skwinkles",barcode:"725181510109",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:97,nombre:"Huevo Kinder",barcode:"800050014600",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🥚"},
-  {id:98,nombre:"Conejo Turín Mini",barcode:"750227191303",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:99,nombre:"Sicao Amargo",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  // Botanas y Snacks
-  {id:100,nombre:"Takis Azules",barcode:"750081002245",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:101,nombre:"Doritos",barcode:"750101116773",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🌽"},
-  {id:102,nombre:"Flamin Hot",barcode:"750047802471",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:103,nombre:"Sabritas Crujientes",barcode:"750101114324",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥔"},
-  {id:104,nombre:"Pretzels",barcode:"750032628614",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥨"},
-  {id:105,nombre:"Papas Gajo",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍟"},
-  {id:106,nombre:"Papas a la Francesa",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍟"},
-  {id:107,nombre:"Aros de Cebolla",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧅"},
-  {id:108,nombre:"Palillo Mini Hot",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:109,nombre:"Alitas",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍗"},
-  {id:110,nombre:"Boneless",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍗"},
-  {id:111,nombre:"Dedos de Queso",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🧀"},
-  {id:112,nombre:"Jalapeños Rellenos",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🌶️"},
-  // Helados y Nieves
-  {id:113,nombre:"Helado de Fresa",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍦"},
-  {id:114,nombre:"Helado de Chocolate",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍦"},
-  {id:115,nombre:"Helado de Vainilla",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍦"},
-  {id:116,nombre:"Helado de Galleta",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"L",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍦"},
-  {id:117,nombre:"Mágnum",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍦"},
-  {id:118,nombre:"Pingüinos Mini",barcode:"750301854492",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🐧"},
-  {id:119,nombre:"Paletas Ferrero",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍭"},
-  {id:120,nombre:"Paletas Rafaello",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍭"},
-  {id:121,nombre:"Paletas Kit Kat",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍭"},
-  // Lácteos y Proteínas
-  {id:122,nombre:"Queso Manchego",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:123,nombre:"Mozzarella Rayado",barcode:"078742084770",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:124,nombre:"Mozzarella en Cubo",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:125,nombre:"Queso Parmesano",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:126,nombre:"Queso Líquido Amarillo",barcode:"750053302562",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:127,nombre:"Philadelphia",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🧀"},
-  {id:128,nombre:"Crema Alpura",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥛"},
-  {id:129,nombre:"Crema Ilsa",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥛"},
-  {id:130,nombre:"Tocino",barcode:"750053300437",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥓"},
-  {id:131,nombre:"Salchicha",barcode:"750132570369",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🌭"},
-  {id:132,nombre:"Jamón Serrano",barcode:"736436704150",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🥩"},
-  {id:133,nombre:"Pechuga de Pavo",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍗"},
-  {id:134,nombre:"Pepperoni",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍕"},
-  // Aderezos y Salsas
-  {id:135,nombre:"Chamoy",barcode:"738545020206",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:136,nombre:"Tajín",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🧂"},
-  {id:137,nombre:"Valentina",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:138,nombre:"Ranch",barcode:"750053300372",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥗"},
-  {id:139,nombre:"BBQ",barcode:"7501006587159",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍖"},
-  {id:140,nombre:"Buffalo",barcode:"041500897431",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:141,nombre:"Chipotle",barcode:"636817702655",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:142,nombre:"Sriracha",barcode:"885093104142",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:143,nombre:"Catsup",barcode:"605388002327",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍅"},
-  {id:144,nombre:"Salsa Prego",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍝"},
-  {id:145,nombre:"Lemon Pepper",barcode:"750302734101",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍋"},
-  {id:146,nombre:"Sazonador Fajitas",barcode:"750053300523",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🧂"},
-  {id:147,nombre:"Jugo Sazonador",barcode:"750200627992",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧂"},
-  {id:148,nombre:"Sal",barcode:"034587020069",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🧂"},
-  {id:149,nombre:"Aderezo Fantasma",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"👻"},
-  {id:150,nombre:"Aderezo Tamarindo",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧂"},
-  // Desechables
-  {id:151,nombre:"Vaso Ch 12oz",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:152,nombre:"Vaso M 16oz",barcode:"752216086056",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:153,nombre:"Vaso G 24oz",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:154,nombre:"Vaso 2oz (prueba)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:155,nombre:"Vaso 4Ch helado",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍦"},
-  {id:156,nombre:"Tapa Ch (helado)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍦"},
-  {id:157,nombre:"Tapa 2oz (vaso)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:158,nombre:"Tapa Plana Vaso Ch",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:159,nombre:"Popote Delgado",barcode:"750302175032",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:160,nombre:"Popote Boba",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧋"},
-  {id:161,nombre:"Bolsa Camisa Chica",barcode:"750220880400",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🛍️"},
-  {id:162,nombre:"Bolsa Camisa Grande",barcode:"750220880402",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🛍️"},
-  {id:163,nombre:"Bolsa Celofán",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🛍️"},
-  {id:164,nombre:"Plato Cartón",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"🍽️"},
-  {id:165,nombre:"Charola 8x8",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"📦"},
-  {id:166,nombre:"Charola Hamburguesera",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"📦"},
-  {id:167,nombre:"Servilletas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🧻"},
-  {id:168,nombre:"Aluminio",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"✨"},
-  {id:169,nombre:"Cucharas Negras",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥄"},
-  {id:170,nombre:"Tenedor Negro",barcode:"750302967301",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍴"},
-  {id:171,nombre:"Cuchillo Negro",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"🍴"},
-  {id:172,nombre:"Portavasos",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:173,nombre:"Portabanderillas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍢"},
-  {id:174,nombre:"Palillos Banderillas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍢"},
-  {id:175,nombre:"Rafia",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🎀"},
-  {id:176,nombre:"Papel Cuadriculado",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"📄"},
-  {id:177,nombre:"Manga de Vasos Ch",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  // Limpieza
-  {id:178,nombre:"Bactericida",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:179,nombre:"Cloro Gel",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:180,nombre:"Gel Antibacterial",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:181,nombre:"Guantes de Nitrilo",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"cajas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🧤"},
-  {id:182,nombre:"Toallitas Desinfectantes",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🧻"},
-  {id:183,nombre:"Jabón para Baño",barcode:"750300785964",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧼"},
-  {id:184,nombre:"Papel de Baño",barcode:"750179161038",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🧻"},
-  {id:185,nombre:"Bolsa Basura 60x90",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"🗑️"},
-  {id:186,nombre:"Bolsa Basura 90x120",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"🗑️"},
-  // Complementos y Toppings
-  {id:187,nombre:"Almendra",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🌰"},
-  {id:188,nombre:"Avellana",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌰"},
-  {id:189,nombre:"Nuez Granillo",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"kg",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🌰"},
-  {id:190,nombre:"Granillo Turín lácteo",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"✨"},
-  {id:191,nombre:"Granillo Gansito",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"✨"},
-  {id:192,nombre:"Gota Blanca",barcode:"750300125059",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"⚪"},
-  {id:193,nombre:"Gota Café",barcode:"523402250724",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🟤"},
-  {id:194,nombre:"Color de Gel",barcode:"850052868352",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🎨"},
-  {id:195,nombre:"Aros de Manzana",barcode:"744218100106",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍎"},
-  {id:196,nombre:"Trozos de Piña",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍍"},
-  {id:197,nombre:"Duraznos en Mitades",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍑"},
-  {id:198,nombre:"Duraznos en Cubo",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍑"},
-  {id:199,nombre:"Aceite Maravilla",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🫙"},
-  {id:200,nombre:"Crema de Cacahuate",barcode:"037600256889",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥜"},
-  {id:201,nombre:"Crema de Coco Calahua",barcode:"750300657511",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥥"},
-  {id:202,nombre:"Aceite Maravilla",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🫙"},
-  {id:203,nombre:"Canela",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍂"},
-  {id:204,nombre:"Garrafón de Agua",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"💧"},
-  {id:205,nombre:"Jugo Cran-Fresa",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:206,nombre:"Rompope",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:207,nombre:"Piñón Licor",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍸"},
-  {id:208,nombre:"Vainilla Varsa Galón",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍶"},
-  {id:209,nombre:"Nesquik Fresa",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:210,nombre:"Jabón Roma",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🧼"},
-  {id:211,nombre:"P. Arroz C/L",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌾"},
-  {id:212,nombre:"Jarabe Pulparindo",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:213,nombre:"Jarabe Pica Fresa",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:214,nombre:"Chocotorro",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:215,nombre:"Chocoroles Mini",barcode:"7503018544908",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:216,nombre:"Chongos Zamoranos",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍮"},
-  {id:217,nombre:"Gansito Mini",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍰"},
-  {id:218,nombre:"Pelón Pelón Rico",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:219,nombre:"Mordisco",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:220,nombre:"Mordisco Oreo",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:221,nombre:"Ositos Enchilados",barcode:"744218100267",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🐻"},
-  {id:222,nombre:"Pica Fresas",barcode:"759686651012",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:223,nombre:"Bombón Chocolate",barcode:"052551666242",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:224,nombre:"Carlos V Stick",barcode:"7501058623348",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:225,nombre:"Caja de Oreo",barcode:"17622210833768",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍪"},
-  {id:226,nombre:"Frutimich Sandía",barcode:"750301721420",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍉"},
-  {id:227,nombre:"C. Chicle Azul",barcode:"781159000294",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:228,nombre:"C. Chicle Rosa",barcode:"614143031922",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:229,nombre:"C. Malvavisco",barcode:"659525583545",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:230,nombre:"C. Algodón Azul",barcode:"700083813213",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:231,nombre:"C. Grosella",barcode:"614143305610",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:232,nombre:"Banderillas de chile/tamarindo",barcode:"7503004347032",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:233,nombre:"Froot Loops",barcode:"750100806638",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🌀"},
-  {id:234,nombre:"Ramen",barcode:"041789002960",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍜"},
-  {id:235,nombre:"4 Quesos",barcode:"096619224098",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧀"},
-  {id:236,nombre:"Sabritas Naturales",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🥔"},
-  {id:237,nombre:"Doritos Nacho",barcode:"",categoria:"🌶️ Botanas y Snacks",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌽"},
-  {id:238,nombre:"Leche Evaporada Carnation",barcode:"",categoria:"☕ Bebidas y Café",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🥛"},
-  {id:239,nombre:"J. Original",barcode:"674012718385",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:240,nombre:"J. Piña Colada",barcode:"7503038161222",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍍"},
-  {id:241,nombre:"J. Avellana",barcode:"658738694093",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🌰"},
-  {id:242,nombre:"J. Cereza",barcode:"674012718019",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍒"},
-  {id:243,nombre:"J. Frambuesa",barcode:"674012718057",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:244,nombre:"J. Fresa",barcode:"740120718064",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:245,nombre:"J. Frutos Rojos",barcode:"674012718088",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍓"},
-  {id:246,nombre:"J. Hot Jalapeño",barcode:"674012718361",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:247,nombre:"J. Kiwi",barcode:"674012718095",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥝"},
-  {id:248,nombre:"J. Lichi",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍡"},
-  {id:249,nombre:"J. Mango",barcode:"674012718101",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥭"},
-  {id:250,nombre:"J. Manzana",barcode:"674012718118",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍎"},
-  {id:251,nombre:"J. Menta",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍃"},
-  {id:252,nombre:"J. Natural",barcode:"674012718132",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🧴"},
-  {id:253,nombre:"J. Neon Limonada",barcode:"674012718873",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍋"},
-  {id:254,nombre:"J. Tamarindo",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍬"},
-  {id:255,nombre:"J. Uva",barcode:"674012718811",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍇"},
-  {id:256,nombre:"J. Maracuyá",barcode:"658738694628",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍊"},
-  {id:257,nombre:"J. Mora Azul",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🫐"},
-  {id:258,nombre:"J. Frutos Chipotle",barcode:"674012718682",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:259,nombre:"J. Doritos",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌽"},
-  {id:260,nombre:"J. Takis",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:261,nombre:"J. Chetos",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧡"},
-  {id:262,nombre:"J. Flamin Hot",barcode:"814012718316",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:263,nombre:"J. Sabritas",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥔"},
-  {id:264,nombre:"Aderezo Chipotle",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:265,nombre:"Aderezo Chetos Flamin Hot",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:266,nombre:"Aderezo Doritos Nachos",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌽"},
-  {id:267,nombre:"Aderezo Sabritas Habanero",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:268,nombre:"Aderezo Takis Fuego",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:269,nombre:"Mango Habanero",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥭"},
-  {id:270,nombre:"Polvo Chipotle",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:271,nombre:"Tapa Plana (M, G)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:272,nombre:"Tapa Domo (M, G)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:273,nombre:"Tapa Orificio Grande (M, G)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:274,nombre:"Tapa de Boquilla (M, G)",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:275,nombre:"Tapa Domo Vaso Ch",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:276,nombre:"Empaque Banderillas Coreanas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"📦"},
-  {id:277,nombre:"Empaque Marquesitas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"📦"},
-  {id:278,nombre:"Bolsa de 1 kg",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🛍️"},
-  {id:279,nombre:"Bolsa de 1/2 kg",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🛍️"},
-  {id:280,nombre:"Tenedor de Colores",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍴"},
-  {id:281,nombre:"Playo",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"📦"},
-  {id:282,nombre:"Charola de Banderillas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍢"},
-  {id:283,nombre:"Bolsa Basura Baño",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"paquetes",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🗑️"},
-  {id:284,nombre:"Pinol",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🧹"},
-  {id:285,nombre:"Hielo",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"bolsas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🧊"},
-  {id:286,nombre:"Gas",barcode:"",categoria:"🧹 Limpieza e Higiene",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:287,nombre:"Etiquetas Apertura",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🏷️"},
-  {id:288,nombre:"Etiquetas Abierto",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🏷️"},
-  {id:289,nombre:"Etiquetas Anaqueles",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🏷️"},
-  {id:290,nombre:"Plumas Negras",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🖊️"},
-  {id:291,nombre:"Plumones Permanentes",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"✏️"},
-  {id:292,nombre:"Teflón / Cinta Teflón",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔧"},
-  {id:293,nombre:"Cinta de Aislar",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔧"},
-  {id:294,nombre:"Pilas 3A",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🔋"},
-  {id:295,nombre:"Atrapa Moscas",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🪰"},
-  {id:296,nombre:"Galletas Marías",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Aurrerá",costo:0,ubicacion:"",caducidad:"",emoji:"🍪"},
-  {id:297,nombre:"Mermelada de Zarzamora",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"",caducidad:"",emoji:"🫐"},
-  {id:298,nombre:"Nieves de Limón",barcode:"",categoria:"🍦 Helados y Nieves",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Sams",costo:0,ubicacion:"Congelador",caducidad:"",emoji:"🍋"},
-  {id:299,nombre:"Plátano Macho",barcode:"",categoria:"🍓 Frutas y Frescos",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"Refrigerador",caducidad:"",emoji:"🍌",esVariable:true},
-  {id:300,nombre:"Ketaifi",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍝"},
-  
-  // Nuevos productos
-  {id:302,nombre:"Portabanderillas sencillo",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🍢"},
-  {id:303,nombre:"Palitos de hot cakes",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🥞"},
-  {id:304,nombre:"Tamarindo a los 3 chiles",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Princesita",costo:0,ubicacion:"",caducidad:"",emoji:"🌶️"},
-  {id:305,nombre:"Perlas explosivas",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🫧"},
-  {id:306,nombre:"Hershey's Fresa",barcode:"",categoria:"🍫 Chocolates y Dulces",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Dulcería Tomy",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-  {id:307,nombre:"Polvo Flaming",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🔥"},
-  {id:308,nombre:"Polvo Chessy",barcode:"",categoria:"🧂 Aderezos y Salsas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🧀"},
-  {id:309,nombre:"Panko",barcode:"",categoria:"🥣 Panadería e Ingredientes",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🍞"},
-  {id:310,nombre:"Crema de Pistache",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🟢"},
-  {id:311,nombre:"Trozos de Tocino",barcode:"",categoria:"🧀 Lácteos y Proteínas",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🥓"},
-  {id:312,nombre:"Rollos de Tickets",barcode:"",categoria:"📎 Papelería y Mantenimiento",cantidad:0,unidad:"rollos",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🧾"},
-  {id:313,nombre:"Coco Rayado",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🥥"},
-  {id:314,nombre:"Cono para Boneles/Papas",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🍦"},
-  {id:315,nombre:"Vaso de litro cuadrado",barcode:"",categoria:"🛍️ Desechables y Empaque",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Casa Rodríguez",costo:0,ubicacion:"",caducidad:"",emoji:"🥤"},
-  {id:316,nombre:"Caramelo líquido",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍮"},
-  {id:317,nombre:"P. Moka",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"☕"},
-  {id:318,nombre:"P. Piña Colada",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Etrusca",costo:0,ubicacion:"",caducidad:"",emoji:"🍍"},
-  {id:319,nombre:"Perlas explosivas de frambuesa",barcode:"",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🫧"},
-  {id:320,nombre:"Polvo Banana",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🍌"},
-  {id:321,nombre:"P. Algodón de Azúcar",barcode:"",categoria:"🧁 Polvos y Bases",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"Mercado Libre",costo:0,ubicacion:"",caducidad:"",emoji:"🍭"},
-  {id:301,nombre:"Cruch",barcode:"750105922391",categoria:"🍬 Complementos y Toppings",cantidad:0,unidad:"pzas",minimo:0,maximo:0,optimo:0,proveedor:"",costo:0,ubicacion:"",caducidad:"",emoji:"🍫"},
-];
+const PRODUCTOS_INICIALES = [];
 
 // DB <-> App converters
 function productoToDb(p) {
@@ -458,6 +146,8 @@ export default function App() {
   const [formProv, setFormProv] = useState({ nombre:"", contacto:"", telefono:"", diasEntrega:"" });
   const [ajusteItem, setAjusteItem] = useState(null);
   const [ajusteDelta, setAjusteDelta] = useState("");
+  const [ajusteEnteroGranel, setAjusteEnteroGranel] = useState("");
+  const [ajusteFraccionGranel, setAjusteFraccionGranel] = useState("");
   const [pinOk, setPinOk] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [mezclas, setMezclas] = useState(MEZCLAS_INICIALES);
@@ -522,7 +212,6 @@ export default function App() {
       ]);
       const prods = rP.data && rP.data.length > 0 ? rP.data.map(dbToProducto) : null;
       if (!prods) {
-        // First time: insert all initial products
         const inserts = PRODUCTOS_INICIALES.map(productoToDb);
         await supabase.from("inventario").insert(inserts);
         setProductos(PRODUCTOS_INICIALES);
@@ -533,7 +222,6 @@ export default function App() {
       setMermas(rM.data ? rM.data.map(dbToMerma) : []);
       setProveedores(rPv.data ? rPv.data.map(dbToProveedor) : []);
 
-      // Cargar frutas y mezclas desde Supabase
       const [rFrutas, rMezclas] = await Promise.all([
         supabase.from("frutas_estado").select("*").order("id"),
         supabase.from("mezclas_estado").select("*").order("id"),
@@ -544,7 +232,6 @@ export default function App() {
           return db ? {...f, cantidad: db.cantidad, estado: db.estado, fechaCompra: db.fecha_compra||"", precio: db.precio||0, minimo: db.minimo||0, minimoFS: db.minimo_fs||0, notas: db.notas||""} : f;
         }));
       } else {
-        // Primera vez: insertar frutas iniciales
         await supabase.from("frutas_estado").insert(FRUTAS_INICIALES.map(f => ({
           id: f.id, nombre: f.nombre, emoji: f.emoji, unidad: f.unidad,
           cantidad: 0, estado: "Fresca", fecha_compra: "", precio: 0,
@@ -557,27 +244,20 @@ export default function App() {
           return db ? {...m, sobrante: db.sobrante||0, optimoSemana: db.optimo_semana||0, optimoFS: db.optimo_fs||0, notas: db.notas||"", fechaRegistro: db.fecha_registro||"", unidad: db.unidad||m.unidad||"L"} : m;
         }));
       } else {
-        // Primera vez: insertar mezclas iniciales
         await supabase.from("mezclas_estado").insert(MEZCLAS_INICIALES.map(m => ({
           id: m.id, nombre: m.nombre, emoji: m.emoji, unidad: m.unidad||"L",
           sobrante: 0, optimo_semana: 0, optimo_fs: 0, notas: "", fecha_registro: null
         })));
       }
-      // Cargar usuarios
       const rUsuarios = await supabase.from("usuarios").select("*").eq("activo", true).order("nombre");
       if (rUsuarios.data) setUsuarios(rUsuarios.data);
-
-      // Modo automático por día
     } catch(e) { console.error("Error cargando datos:", e); }
   }
 
   async function guardar(p,h,m,pv) {
-    // Supabase writes happen inline in each function - this is just a state sync helper
     setGuardando(true);
     setTimeout(()=>setGuardando(false),500);
   }
-
-  // Modo automático por día de la semana
 
   async function ajustarRapido(id, delta) {
     const prod = productos.find(p=>p.id===id); if (!prod) return;
@@ -594,9 +274,15 @@ export default function App() {
   }
 
   async function ajusteManual() {
-    if (!ajusteItem || ajusteDelta==="") return;
+    if (!ajusteItem) return;
+    let nuevaCant;
+    if (esGranel(ajusteItem)) {
+      nuevaCant = Math.max(0, partesADecimal(ajusteEnteroGranel, ajusteFraccionGranel));
+    } else {
+      if (ajusteDelta==="") return;
+      nuevaCant = Math.max(0,+ajusteDelta);
+    }
     const prod = productos.find(p=>p.id===ajusteItem.id);
-    const nuevaCant = Math.max(0,+ajusteDelta);
     const nuevaLista = productos.map(p=>p.id===ajusteItem.id?{...p,cantidad:nuevaCant}:p);
     const mov = {id:Date.now(),productoId:ajusteItem.id,nombre:prod.nombre,unidad:prod.unidad,tipo:"ajuste",cantidad:Math.abs(nuevaCant-prod.cantidad),antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
     const nuevoH = [mov,...historial].slice(0,500);
@@ -606,7 +292,7 @@ export default function App() {
       supabase.from("inventario").update({cantidad:nuevaCant}).eq("id",ajusteItem.id),
       supabase.from("historial").insert(movimientoToDb(mov)),
     ]);
-    setModal(null); setAjusteItem(null); setAjusteDelta("");
+    setModal(null); setAjusteItem(null); setAjusteDelta(""); setAjusteEnteroGranel(""); setAjusteFraccionGranel("");
   }
 
   const TU_NUMERO = "5215544690495";
@@ -713,7 +399,6 @@ export default function App() {
       }));
     }
     await Promise.all([...updates, ...movimientos]);
-    // Update local state
     const nuevosProductos = productos.map(p => {
       const cant = cantRecepcion[p.id];
       if (!cant || +cant <= 0) return p;
@@ -793,7 +478,6 @@ export default function App() {
         presentacion: fp.presentacion || "",
         costo_presentacion: +fp.costoPresentacion || 0,
       };
-      // Always include proveedor - use form value OR keep existing from freshDataRef
       updateData.proveedor = (fp.proveedor && fp.proveedor.trim() !== "") 
         ? fp.proveedor 
         : (freshDataRef.current?.proveedor || "");
@@ -994,7 +678,7 @@ export default function App() {
                   <div key={p.id} className="rh ti" style={{background:"rgba(13,17,23,0.8)",border:`1px solid ${cad?"rgba(167,139,250,0.3)":p.cantidad<=getMinimoActivo(p)?s.color+"30":"rgba(125,211,252,0.08)"}`,borderRadius:"12px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",backdropFilter:"blur(10px)"}}>
                     <div style={{width:"36px",height:"36px",background:s.bg,borderRadius:"9px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"19px",flexShrink:0}}>{p.emoji||"📦"}</div>
                     <div style={{flex:"1",minWidth:"120px"}}>
-                      <div style={{fontWeight:"600",fontSize:"13px"}}>{p.nombre}{p.esVariable&&<span style={{fontSize:"9px",background:"#f59e0b20",color:C.warn,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>VARIABLE</span>}</div>
+                      <div style={{fontWeight:"600",fontSize:"13px"}}>{p.nombre}{p.esVariable&&<span style={{fontSize:"9px",background:"#f59e0b20",color:C.warn,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>VARIABLE</span>}{esGranel(p)&&<span style={{fontSize:"9px",background:"#7dd3fc20",color:C.accent,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>GRANEL</span>}</div>
                       <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
                         {p.categoria.split(" ").slice(1).join(" ")}
                         {p.ubicacion&&<span style={{color:"#60a5fa"}}> · 📍{p.ubicacion}</span>}
@@ -1006,8 +690,8 @@ export default function App() {
                       <div style={{fontSize:"9px",color:C.muted,textTransform:"uppercase",marginBottom:"3px"}}>Cantidad</div>
                       <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
                         <button className="ti" onClick={()=>ajustarRapido(p.id,-1)} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
-                        <button onClick={()=>{setAjusteItem(p);setAjusteDelta(p.cantidad);setModal("ajuste");}} style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"7px",padding:"2px 8px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:s.color,fontSize:"13px",minWidth:"64px",textAlign:"center"}}>
-                          {p.cantidad} {p.unidad}
+                        <button onClick={()=>{setAjusteItem(p);setAjusteDelta(p.cantidad);const{entero,fraccion}=decimalAPartes(p.cantidad);setAjusteEnteroGranel(entero===0&&fraccion===0?"":String(entero));setAjusteFraccionGranel(fraccion===0?"":String(fraccion));setModal("ajuste");}} style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"7px",padding:"2px 8px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:s.color,fontSize:"13px",minWidth:esGranel(p)?"86px":"64px",textAlign:"center"}}>
+                          {esGranel(p)?fmtGranel(p.cantidad,p.unidad):`${p.cantidad} ${p.unidad}`}
                         </button>
                         <button className="ti" onClick={()=>ajustarRapido(p.id,1)} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
                       </div>
@@ -1695,7 +1379,33 @@ export default function App() {
             {modal==="ajuste"&&ajusteItem&&<>
               <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px",color:C.warn}}>🔧 Ajuste manual</div>
               <div style={{fontSize:"11px",color:C.muted,marginBottom:"16px"}}>{ajusteItem.nombre} — cantidad exacta actual</div>
-              <input type="number" min="0" value={ajusteDelta} onChange={e=>setAjusteDelta(e.target.value)} style={{...inp,fontSize:"24px",textAlign:"center",fontFamily:"'DM Mono',monospace"}} autoFocus/>
+              {esGranel(ajusteItem)?(
+                <>
+                  <div style={{display:"flex",gap:"10px",alignItems:"stretch"}}>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>{ajusteItem.unidad==="L"?"Litros":"Kilos"}</label>
+                      <div style={{position:"relative"}}>
+                        <input type="number" min="0" inputMode="numeric" value={ajusteEnteroGranel} onChange={e=>setAjusteEnteroGranel(e.target.value)} style={{...inp,fontSize:"22px",textAlign:"center",fontFamily:"'DM Mono',monospace",paddingRight:"34px"}} autoFocus/>
+                        <span style={{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",fontSize:"12px",color:C.muted,pointerEvents:"none"}}>{ajusteItem.unidad}</span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"flex-end",paddingBottom:"10px",fontSize:"20px",color:C.muted}}>+</div>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>{ajusteItem.unidad==="L"?"Mililitros":"Gramos"}</label>
+                      <div style={{position:"relative"}}>
+                        <input type="number" min="0" max="999" inputMode="numeric" value={ajusteFraccionGranel} onChange={e=>setAjusteFraccionGranel(e.target.value)} style={{...inp,fontSize:"22px",textAlign:"center",fontFamily:"'DM Mono',monospace",paddingRight:"40px"}}/>
+                        <span style={{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",fontSize:"12px",color:C.muted,pointerEvents:"none"}}>{unidadFraccion(ajusteItem.unidad)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{marginTop:"12px",background:"#22c55e10",border:"1px solid #22c55e30",borderRadius:"10px",padding:"10px 14px",textAlign:"center"}}>
+                    <div style={{fontSize:"10px",color:C.success,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"3px"}}>Quedará en</div>
+                    <div style={{fontSize:"18px",fontWeight:"700",color:C.success,fontFamily:"'DM Mono',monospace"}}>{partesADecimal(ajusteEnteroGranel,ajusteFraccionGranel)} {ajusteItem.unidad} <span style={{fontSize:"12px",color:C.muted}}>({fmtGranel(partesADecimal(ajusteEnteroGranel,ajusteFraccionGranel),ajusteItem.unidad)})</span></div>
+                  </div>
+                </>
+              ):(
+                <input type="number" min="0" value={ajusteDelta} onChange={e=>setAjusteDelta(e.target.value)} style={{...inp,fontSize:"24px",textAlign:"center",fontFamily:"'DM Mono',monospace"}} autoFocus/>
+              )}
               <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
                 <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
                 <button onClick={ajusteManual} style={{...btnP,flex:2}}>Aplicar</button>
@@ -1824,7 +1534,6 @@ export default function App() {
             <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px"}}>Identificarse</div>
             <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"18px"}}>Selecciona tu nombre e ingresa tu PIN</div>
             
-            {/* Selector de nombre */}
             <select 
               value={nombreSeleccionado}
               onChange={e=>{setNombreSeleccionado(e.target.value);setPinUsuario("");setErrorLogin("");}}
@@ -1834,7 +1543,6 @@ export default function App() {
               {usuarios.map(u=><option key={u.id} value={u.nombre}>{u.nombre}</option>)}
             </select>
 
-            {/* PIN */}
             {nombreSeleccionado&&(
               <input 
                 type="password"
@@ -1889,7 +1597,6 @@ export default function App() {
           <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>👥 Gestión de Usuarios</div>
             
-            {/* Lista de usuarios */}
             <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
               {usuarios.map(u=>(
                 <div key={u.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 14px"}}>
@@ -1928,7 +1635,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Agregar usuario */}
             <div style={{borderTop:"1px solid #2a2d3a",paddingTop:"14px",marginBottom:"14px"}}>
               <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"10px",fontWeight:"600"}}>AGREGAR USUARIO</div>
               <div style={{display:"grid",gap:"8px"}}>
@@ -2110,7 +1816,6 @@ export default function App() {
           <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
             <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>{tipoRecepcion==="entrada"?"📦 Recibir pedido":"📤 Registrar salida"}</div>
             
-            {/* Pestañas */}
             <div style={{display:"flex",gap:"6px",marginBottom:"14px",background:"#12151e",borderRadius:"10px",padding:"4px"}}>
               <button onClick={()=>{setTipoRecepcion("entrada");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="entrada"?"linear-gradient(135deg,#6ee7b7,#3b82f6)":"transparent",color:tipoRecepcion==="entrada"?"#0f1117":"#8b90a0"}}>📦 Entrada</button>
               <button onClick={()=>{setTipoRecepcion("salida");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="salida"?"linear-gradient(135deg,#f59e0b,#ef4444)":"transparent",color:tipoRecepcion==="salida"?"#0f1117":"#8b90a0"}}>📤 Salida</button>
@@ -2129,7 +1834,6 @@ export default function App() {
             </div>
 
 
-            {/* Lista de productos */}
             <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
               {productos
                 .filter(p => !busqRecepcion || p.nombre.toLowerCase().includes(busqRecepcion.toLowerCase()))
@@ -2138,11 +1842,12 @@ export default function App() {
                   <span style={{fontSize:"18px"}}>{p.emoji}</span>
                   <div style={{flex:1}}>
                     <div style={{fontSize:"13px",fontWeight:"600"}}>{p.nombre}</div>
-                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {p.cantidad} {p.unidad}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {esGranel(p)?fmtGranel(p.cantidad,p.unidad):`${p.cantidad} ${p.unidad}`}</div>
                   </div>
                   <input
                     type="number"
                     min="0"
+                    step={esGranel(p)?"0.001":"1"}
                     placeholder="0"
                     value={cantRecepcion[p.id]||""}
                     onChange={e=>setCantRecepcion(r=>({...r,[p.id]:e.target.value}))}
@@ -2153,7 +1858,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Resumen */}
             {Object.values(cantRecepcion).some(v=>v&&+v>0)&&(
               <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
                 ✅ {Object.values(cantRecepcion).filter(v=>v&&+v>0).length} producto(s) por actualizar
