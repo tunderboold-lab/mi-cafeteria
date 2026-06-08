@@ -48,6 +48,7 @@ const RECETAS = {
       { id: 48, cantidad: 1.2 },    // Harina Hotcakes (1.2 kg = 1 kg 200 g)
       { id: 50, cantidad: 0.1 },    // Azúcar (0.1 kg = 100 g)
       { id: 208, cantidad: 0.06 },  // Vainilla Varsa Galón (0.06 L = 60 ml)
+      { id: 58, cantidad: 4 },      // Huevo (4 pzas)
     ],
   },
   4: { // Fresas con Crema
