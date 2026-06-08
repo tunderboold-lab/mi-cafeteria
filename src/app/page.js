@@ -41,6 +41,16 @@ const fmtGranel = (decimal, unidad) => {
 // "cantidad" es lo que se gasta por UNA tanda, en la MISMA unidad que el producto en inventario.
 // Para agregar una receta nueva: copia el patrón usando el ID de la mezcla y los IDs de inventario de sus ingredientes.
 const RECETAS = {
+  1: { // Waffles
+    nombre: "Mezcla de Waffles",
+    ingredientes: [
+      { id: 58, cantidad: 5 },      // Huevo (5 pzas)
+      { id: 50, cantidad: 0.3 },    // Azúcar (0.3 kg = 300 g)
+      { id: 2, cantidad: 1 },       // Leche Entera (1 L)
+      { id: 48, cantidad: 0.4 },    // Harina Hotcakes (0.4 kg = 400 g)
+      { id: 208, cantidad: 0.325 }, // Vainilla Varsa Galón (0.325 L = 325 ml)
+    ],
+  },
   2: { // Crepas
     nombre: "Mezcla de Crepas",
     ingredientes: [
