@@ -50,6 +50,10 @@ const RECETAS = {
 };
 const tieneReceta = (mezclaId) => !!(RECETAS[mezclaId] && RECETAS[mezclaId].ingredientes && RECETAS[mezclaId].ingredientes.length > 0);
 
+// Solo estos nombres de login pueden VER y USAR el botón 🍳 (producir mezclas / ver recetas).
+// Para dar acceso a alguien más: agrega su nombre EXACTO de login a esta lista.
+const NOMBRES_RECETAS = ["Supervisor", "Abby"];
+
 const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mezclas",label:"Mezclas",icon:"🧁"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
 
 
@@ -653,6 +657,8 @@ export default function App() {
     return a + (cp ? cp.costo : (p.cantComprar||0)*(p.costo||0));
   },0);
 
+  const puedeProducir = NOMBRES_RECETAS.includes(usuario);
+
   const C={bg:"#060810",card:"#0d1117",border:"#1a2235",accent:"#7dd3fc",text:"#e2e8f0",muted:"#64748b",warn:"#fbbf24",danger:"#f87171",success:"#34d399",info:"#818cf8"};
   const inp={width:"100%",background:"rgba(7,10,18,0.8)",border:"1px solid rgba(125,211,252,0.15)",borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box",backdropFilter:"blur(10px)"};
   const lbl={fontSize:"10px",color:"#7dd3fc80",textTransform:"uppercase",letterSpacing:"2px",display:"block",marginBottom:"5px",fontWeight:"500"};
@@ -1037,7 +1043,7 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{display:"flex",gap:"4px"}}>
-                      {tieneReceta(m.id)&&<button onClick={()=>{setModalProducir(m);setTandasProducir("1");}} style={{background:"#22c55e20",border:"none",color:C.success,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}} title="Producir (descuenta ingredientes)">🍳</button>}
+                      {tieneReceta(m.id)&&puedeProducir&&<button onClick={()=>{setModalProducir(m);setTandasProducir("1");}} style={{background:"#22c55e20",border:"none",color:C.success,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}} title="Producir (descuenta ingredientes)">🍳</button>}
                       <button onClick={()=>{setFormM({productoId:"mezcla_"+m.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma_mezcla");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>📉</button>
                       <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
                     </div>
@@ -1849,7 +1855,7 @@ export default function App() {
       )}
 
       {/* ===== MODAL PRODUCIR MEZCLA ===== */}
-      {modalProducir&&RECETAS[modalProducir.id]&&(()=>{
+      {modalProducir&&puedeProducir&&RECETAS[modalProducir.id]&&(()=>{
         const receta = RECETAS[modalProducir.id];
         const tandas = Math.max(1, Math.floor(+tandasProducir || 1));
         const detalle = receta.ingredientes.map(ing => {
