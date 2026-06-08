@@ -32,6 +32,7 @@ const fmtGranel = (decimal, unidad) => {
   const { entero, fraccion } = decimalAPartes(decimal);
   const uFrac = unidadFraccion(unidad);
   if (fraccion === 0) return `${entero} ${unidad}`;
+  if (entero === 0) return `${fraccion} ${uFrac}`;
   return `${entero} ${unidad} ${fraccion} ${uFrac}`;
 };
 
@@ -40,6 +41,15 @@ const fmtGranel = (decimal, unidad) => {
 // "cantidad" es lo que se gasta por UNA tanda, en la MISMA unidad que el producto en inventario.
 // Para agregar una receta nueva: copia el patrón usando el ID de la mezcla y los IDs de inventario de sus ingredientes.
 const RECETAS = {
+  3: { // Mini Hot Cakes
+    nombre: "Mezcla de Mini Hot Cakes",
+    ingredientes: [
+      { id: 2, cantidad: 1.5 },     // Leche Entera (1.5 L)
+      { id: 48, cantidad: 1.2 },    // Harina Hotcakes (1.2 kg = 1 kg 200 g)
+      { id: 50, cantidad: 0.1 },    // Azúcar (0.1 kg = 100 g)
+      { id: 208, cantidad: 0.06 },  // Vainilla Varsa Galón (0.06 L = 60 ml)
+    ],
+  },
   4: { // Fresas con Crema
     nombre: "Crema para Fresas",
     ingredientes: [
