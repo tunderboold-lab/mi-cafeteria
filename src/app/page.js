@@ -16,7 +16,7 @@ const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación"
 // ===== PRODUCTOS A GRANEL (formato kilos+gramos / litros+ml) =====
 // IDs de productos que se capturan con dos campos (entero + fracción).
 // Para agregar uno nuevo: solo mete su ID en esta lista.
-const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208];
+const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208, 148];
 const esGranel = (p) => p && PRODUCTOS_GRANEL.includes(p.id) && (p.unidad === "kg" || p.unidad === "L");
 const unidadFraccion = (unidad) => unidad === "L" ? "ml" : "g";
 const decimalAPartes = (decimal) => {
@@ -76,6 +76,16 @@ const RECETAS = {
     ingredientes: [
       { id: 10, cantidad: 1 },   // Lyncott (1 L)
       { id: 9, cantidad: 1 },    // Lechera (1 pza)
+    ],
+  },
+  10: { // Mezcla Banderillas Coreanas
+    nombre: "Mezcla de Banderillas Coreanas",
+    ingredientes: [
+      { id: 49, cantidad: 0.4 },    // Levadura Tradipan (0.4 caja = 2 sobres de 5)
+      { id: 46, cantidad: 1.3 },    // Harina de Trigo (1.3 kg = 1 kg 300 g)
+      { id: 47, cantidad: 0.3 },    // Harina de Arroz (0.3 kg = 300 g)
+      { id: 50, cantidad: 0.08 },   // Azúcar (0.08 kg = 80 g)
+      { id: 148, cantidad: 0.03 },  // Sal (0.03 kg = 30 g)
     ],
   },
 };
