@@ -16,7 +16,7 @@ const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación"
 // ===== PRODUCTOS A GRANEL (formato kilos+gramos / litros+ml) =====
 // IDs de productos que se capturan con dos campos (entero + fracción).
 // Para agregar uno nuevo: solo mete su ID en esta lista.
-const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208, 148];
+const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208, 148, 8, 11];
 const esGranel = (p) => p && PRODUCTOS_GRANEL.includes(p.id) && (p.unidad === "kg" || p.unidad === "L");
 const unidadFraccion = (unidad) => unidad === "L" ? "ml" : "g";
 const decimalAPartes = (decimal) => {
@@ -76,6 +76,15 @@ const RECETAS = {
     ingredientes: [
       { id: 10, cantidad: 1 },   // Lyncott (1 L)
       { id: 9, cantidad: 1 },    // Lechera (1 pza)
+    ],
+  },
+  9: { // Base para Frappes
+    nombre: "Base para Frappes",
+    ingredientes: [
+      { id: 8, cantidad: 0.35 },            // Leche en Polvo (0.35 kg = 350 g)
+      { id: 11, cantidad: 0.25 },           // Sustituto de Crema (0.25 kg = 250 g)
+      { id: 50, cantidad: 0.4 },            // Azúcar (0.4 kg = 400 g)
+      { id: 1781028353045, cantidad: 25 },  // CMC (25 g)
     ],
   },
   10: { // Mezcla Banderillas Coreanas
