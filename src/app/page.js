@@ -1,0 +1,2069 @@
+'use client';
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "../lib/supabase";
+
+
+const CATEGORIAS = [
+  "☕ Bebidas y Café","🧁 Polvos y Bases","🍓 Frutas y Frescos","🍫 Chocolates y Dulces",
+  "🌶️ Botanas y Snacks","🍦 Helados y Nieves","🧀 Lácteos y Proteínas","🥣 Panadería e Ingredientes",
+  "🧂 Aderezos y Salsas","🛍️ Desechables y Empaque","🧹 Limpieza e Higiene","🍬 Complementos y Toppings",
+  "📎 Papelería y Mantenimiento"
+];
+
+const UNIDADES = ["kg","g","L","mL","pzas","cajas","bolsas","paquetes","rollos","litros"];
+const MOTIVOS_MERMA = ["Caducidad","Accidente / Derrame","Error de preparación","Robo / Pérdida","Mala calidad","Otro"];
+
+// ===== PRODUCTOS A GRANEL (formato kilos+gramos / litros+ml) =====
+// IDs de productos que se capturan con dos campos (entero + fracción).
+// Para agregar uno nuevo: solo mete su ID en esta lista.
+const PRODUCTOS_GRANEL = [50, 47, 46, 48, 1779574772988, 208, 148, 8, 11, 1779715504409];
+const esGranel = (p) => p && PRODUCTOS_GRANEL.includes(p.id) && (p.unidad === "kg" || p.unidad === "L");
+const unidadFraccion = (unidad) => unidad === "L" ? "ml" : "g";
+const decimalAPartes = (decimal) => {
+  const num = +decimal || 0;
+  const entero = Math.floor(num);
+  const fraccion = Math.round((num - entero) * 1000);
+  return { entero, fraccion };
+};
+const partesADecimal = (entero, fraccion) => {
+  return Math.round(((+entero || 0) + (+fraccion || 0) / 1000) * 1000) / 1000;
+};
+const fmtGranel = (decimal, unidad) => {
+  const { entero, fraccion } = decimalAPartes(decimal);
+  const uFrac = unidadFraccion(unidad);
+  if (fraccion === 0) return `${entero} ${unidad}`;
+  if (entero === 0) return `${fraccion} ${uFrac}`;
+  return `${entero} ${unidad} ${fraccion} ${uFrac}`;
+};
+
+// ===== RECETAS DE MEZCLAS =====
+// Mapea cada mezcla (por su ID) a sus ingredientes del inventario (por ID de inventario).
+// "cantidad" es lo que se gasta por UNA tanda, en la MISMA unidad que el producto en inventario.
+// Para agregar una receta nueva: copia el patrón usando el ID de la mezcla y los IDs de inventario de sus ingredientes.
+const RECETAS = {
+  1: { // Waffles
+    nombre: "Mezcla de Waffles",
+    ingredientes: [
+      { id: 58, cantidad: 5 },      // Huevo (5 pzas)
+      { id: 50, cantidad: 0.3 },    // Azúcar (0.3 kg = 300 g)
+      { id: 2, cantidad: 1 },       // Leche Entera (1 L)
+      { id: 48, cantidad: 0.4 },    // Harina Hotcakes (0.4 kg = 400 g)
+      { id: 208, cantidad: 0.325 }, // Vainilla Varsa Galón (0.325 L = 325 ml)
+    ],
+  },
+  2: { // Crepas
+    nombre: "Mezcla de Crepas",
+    ingredientes: [
+      { id: 58, cantidad: 2 },      // Huevo (2 pzas)
+      { id: 46, cantidad: 2.2 },    // Harina de Trigo (2.2 kg = 2 kg 200 g)
+      { id: 2, cantidad: 3 },       // Leche Entera (3 L)
+      { id: 208, cantidad: 0.625 }, // Vainilla Varsa Galón (0.625 L = 625 ml)
+      { id: 50, cantidad: 0.5 },    // Azúcar (0.5 kg = 500 g)
+    ],
+  },
+  3: { // Mini Hot Cakes
+    nombre: "Mezcla de Mini Hot Cakes",
+    ingredientes: [
+      { id: 2, cantidad: 1.5 },     // Leche Entera (1.5 L)
+      { id: 48, cantidad: 1.2 },    // Harina Hotcakes (1.2 kg = 1 kg 200 g)
+      { id: 50, cantidad: 0.1 },    // Azúcar (0.1 kg = 100 g)
+      { id: 208, cantidad: 0.06 },  // Vainilla Varsa Galón (0.06 L = 60 ml)
+      { id: 58, cantidad: 4 },      // Huevo (4 pzas)
+    ],
+  },
+  4: { // Fresas con Crema
+    nombre: "Crema para Fresas",
+    ingredientes: [
+      { id: 10, cantidad: 1 },   // Lyncott (1 L)
+      { id: 9, cantidad: 1 },    // Lechera (1 pza)
+    ],
+  },
+  8: { // Tapioca
+    nombre: "Tapioca",
+    ingredientes: [
+      { id: 1779715504409, cantidad: 0.2 },  // Tapioca (0.2 kg = 200 g)
+    ],
+  },
+  9: { // Base para Frappes
+    nombre: "Base para Frappes",
+    ingredientes: [
+      { id: 8, cantidad: 0.35 },            // Leche en Polvo (0.35 kg = 350 g)
+      { id: 11, cantidad: 0.25 },           // Sustituto de Crema (0.25 kg = 250 g)
+      { id: 50, cantidad: 0.4 },            // Azúcar (0.4 kg = 400 g)
+      { id: 1781028353045, cantidad: 25 },  // CMC (25 g)
+    ],
+  },
+  10: { // Mezcla Banderillas Coreanas
+    nombre: "Mezcla de Banderillas Coreanas",
+    ingredientes: [
+      { id: 49, cantidad: 0.4 },    // Levadura Tradipan (0.4 caja = 2 sobres de 5)
+      { id: 46, cantidad: 1.3 },    // Harina de Trigo (1.3 kg = 1 kg 300 g)
+      { id: 47, cantidad: 0.3 },    // Harina de Arroz (0.3 kg = 300 g)
+      { id: 50, cantidad: 0.08 },   // Azúcar (0.08 kg = 80 g)
+      { id: 148, cantidad: 0.03 },  // Sal (0.03 kg = 30 g)
+    ],
+  },
+};
+const tieneReceta = (mezclaId) => !!(RECETAS[mezclaId] && RECETAS[mezclaId].ingredientes && RECETAS[mezclaId].ingredientes.length > 0);
+
+// Solo estos nombres de login pueden VER y USAR el botón 🍳 (producir mezclas / ver recetas).
+// Para dar acceso a alguien más: agrega su nombre EXACTO de login a esta lista.
+const NOMBRES_RECETAS = ["Supervisor", "Abby"];
+
+const TABS = [{id:"inventario",label:"Inventario",icon:"📦"},{id:"frutas",label:"Frutas",icon:"🍓"},{id:"mezclas",label:"Mezclas",icon:"🧁"},{id:"pedidos",label:"Pedidos",icon:"🛒"},{id:"mermas",label:"Mermas",icon:"📉"},{id:"historial",label:"Historial",icon:"📋"},{id:"reportes",label:"Reportes",icon:"📊"}];
+
+
+const PRODUCTOS_INICIALES = [];
+
+// DB <-> App converters
+function productoToDb(p) {
+  return {
+    id: p.id, nombre: p.nombre, barcode: p.barcode||"", categoria: p.categoria,
+    cantidad: p.cantidad, unidad: p.unidad, minimo: p.minimo, minimo_fs: p.minimoFS||0, maximo: p.maximo||0,
+    optimo: p.optimo||0, cant_comprar: p.cantComprar||0, proveedor: p.proveedor||"",
+    costo: p.costo||0, ubicacion: p.ubicacion||"", caducidad: p.caducidad||"",
+    emoji: p.emoji||"📦", es_variable: p.esVariable||false,
+    presentacion: p.presentacion||"", costo_presentacion: p.costoPresentacion||0
+  };
+}
+function dbToProducto(r) {
+  return {
+    id: r.id, nombre: r.nombre, barcode: r.barcode||"", categoria: r.categoria,
+    cantidad: r.cantidad, unidad: r.unidad, minimo: r.minimo, minimoFS: r.minimo_fs||0, maximo: r.maximo||0,
+    optimo: r.optimo||0, cantComprar: r.cant_comprar||0, proveedor: r.proveedor||"",
+    costo: r.costo||0, ubicacion: r.ubicacion||"", caducidad: r.caducidad||"",
+    emoji: r.emoji||"📦", esVariable: r.es_variable||false,
+    presentacion: r.presentacion||"", costoPresentacion: r.costo_presentacion||0
+  };
+}
+function movimientoToDb(m) {
+  return {id:m.id,producto_id:m.productoId,nombre:m.nombre,unidad:m.unidad,tipo:m.tipo,cantidad:m.cantidad,antes:m.antes,despues:m.despues,fecha:m.fecha,usuario:m.usuario||""};
+}
+function dbToMovimiento(r) {
+  return {id:r.id,productoId:r.producto_id,nombre:r.nombre,unidad:r.unidad,tipo:r.tipo,cantidad:r.cantidad,antes:r.antes,despues:r.despues,fecha:r.fecha,usuario:r.usuario||""};
+}
+function mermaToDb(m) {
+  return {id:m.id,producto_id:m.productoId,nombre:m.nombre,unidad:m.unidad,cantidad:m.cantidad,motivo:m.motivo,notas:m.notas||"",costo_estimado:m.costoEstimado||0,antes:m.antes,despues:m.despues,fecha:m.fecha};
+}
+function dbToMerma(r) {
+  return {id:r.id,productoId:r.producto_id,nombre:r.nombre,unidad:r.unidad,cantidad:r.cantidad,motivo:r.motivo,notas:r.notas||"",costoEstimado:r.costo_estimado||0,antes:r.antes,despues:r.despues,fecha:r.fecha};
+}
+function dbToProveedor(r) {
+  return {id:r.id,nombre:r.nombre,contacto:r.contacto||"",telefono:r.telefono||"",diasEntrega:r.dias_entrega||""};
+}
+
+
+const statusInfo = p => {
+  const minActivo = getMinimoActivo(p);
+  if (p.cantidad === 0) return { color:"#ef4444", bg:"#ef444415", label:"Agotado", icon:"🚫" };
+  if (p.cantidad <= minActivo) return { color:"#f59e0b", bg:"#f59e0b15", label:"Stock bajo", icon:"⚠️" };
+  if (p.cantidad <= p.optimo) return { color:"#60a5fa", bg:"#60a5fa15", label:"Óptimo bajo", icon:"📊" };
+  return { color:"#22c55e", bg:"#22c55e15", label:"OK", icon:"✅" };
+};
+
+const fmt = iso => new Date(iso).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+const diasParaCaducar = fecha => fecha ? Math.ceil((new Date(fecha) - new Date()) / 86400000) : null;
+
+const FORM_VACIO = { nombre:"", barcode:"", categoria:"☕ Bebidas y Café", cantidad:"", unidad:"pzas", minimo:"", minimoFS:"", maximo:"", optimo:"", proveedor:"", costo:"", ubicacion:"", caducidad:"", emoji:"📦", esVariable:false, presentacion:"", costoPresentacion:"" };
+
+// Detectar si es fin de semana (viernes, sábado, domingo)
+const esFindeSemana = () => { const dia = new Date().getDay(); return dia === 0 || dia === 5 || dia === 6; };
+const getMinimoActivo = (p) => { const fs = esFindeSemana(); return (fs && p.minimoFS > 0) ? p.minimoFS : p.minimo; };
+// Calcula EN VIVO cuánto pedir: óptimo menos lo que hay (nunca negativo).
+// Siempre se calcula al momento, así nunca se queda con un valor viejo guardado.
+const calcComprar = (p) => Math.max(0, (p.optimo || 0) - (p.cantidad || 0));
+
+const MEZCLAS_INICIALES = [
+  {id:1,nombre:"Waffles",emoji:"🧇",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:2,nombre:"Crepas",emoji:"🥞",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:3,nombre:"Mini Hot Cakes",emoji:"🥞",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:4,nombre:"Fresas con Crema",emoji:"🍓",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:5,nombre:"Crema Ferrero",emoji:"🍫",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:6,nombre:"Crema Rafaelo",emoji:"🍬",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:7,nombre:"Crema Batida",emoji:"🍦",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:8,nombre:"Tapioca",emoji:"🧋",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:9,nombre:"Base para Frappes",emoji:"🥤",unidad:"L",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+  {id:10,nombre:"Mezcla Banderillas Coreanas",emoji:"🍢",unidad:"kg",sobrante:0,optimoSemana:0,optimoFS:0,producirManana:0,notas:"",fechaRegistro:""},
+];
+
+const FRUTAS_INICIALES = [
+  {id:1,nombre:"Fresa",emoji:"🍓",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:2,nombre:"Plátano",emoji:"🍌",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:3,nombre:"Uva",emoji:"🍇",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:4,nombre:"Lechuga",emoji:"🥬",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:5,nombre:"Pepino",emoji:"🥒",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:6,nombre:"Limón",emoji:"🍋",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:7,nombre:"Zarzamora",emoji:"🫐",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:8,nombre:"Frambuesa",emoji:"🍓",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:9,nombre:"Mora",emoji:"🫐",unidad:"domos",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:10,nombre:"Piña",emoji:"🍍",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:11,nombre:"Champiñones",emoji:"🍄",unidad:"kg",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:12,nombre:"Mango",emoji:"🥭",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:13,nombre:"Kiwi",emoji:"🥝",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:14,nombre:"Sandía",emoji:"🍉",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+  {id:15,nombre:"Plátano macho",emoji:"🍌",unidad:"pzas",cantidad:0,estado:"Fresca",fechaCompra:"",precio:0,minimo:0,minimoFS:0,notas:""},
+];
+
+export default function App() {
+  const [tab, setTab] = useState("inventario");
+  const [productos, setProductos] = useState([]);
+  const [historial, setHistorial] = useState([]);
+  const [mermas, setMermas] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
+  const modoFinSemana = esFindeSemana();
+  const [modal, setModal] = useState(null);
+  const [editando, setEditando] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [filtroCat, setFiltroCat] = useState("Todas");
+  const [guardando, setGuardando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const [scanActivo, setScanActivo] = useState(false);
+  const [formP, _setFormP] = useState(FORM_VACIO);
+  const setFormP = (val) => { const v = typeof val === 'function' ? val(formPRef.current) : val; formPRef.current = v; _setFormP(v); };
+  const [formM, setFormM] = useState({ productoId:"", cantidad:"", motivo:"Caducidad", notas:"" });
+  const [formProv, setFormProv] = useState({ nombre:"", contacto:"", telefono:"", diasEntrega:"" });
+  const [ajusteItem, setAjusteItem] = useState(null);
+  const [ajusteDelta, setAjusteDelta] = useState("");
+  const [ajusteEnteroGranel, setAjusteEnteroGranel] = useState("");
+  const [ajusteFraccionGranel, setAjusteFraccionGranel] = useState("");
+  const [pinOk, setPinOk] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [mezclas, setMezclas] = useState(MEZCLAS_INICIALES);
+  const [modalMezcla, setModalMezcla] = useState(false);
+  const [editandoMezcla, setEditandoMezcla] = useState(null);
+  const [formMezcla, setFormMezcla] = useState(null);
+  const [modalProducir, setModalProducir] = useState(null);
+  const [tandasProducir, setTandasProducir] = useState("1");
+  const [produciendo, setProduciendo] = useState(false);
+  const [frutas, setFrutas] = useState(FRUTAS_INICIALES);
+  const [modalFruta, setModalFruta] = useState(false);
+  const [editandoFruta, setEditandoFruta] = useState(null);
+  const [formFruta, setFormFruta] = useState(null);
+  const [modalRecepcion, setModalRecepcion] = useState(false);
+  const [provRecepcion, setProvRecepcion] = useState("Todos");
+  const [cantRecepcion, setCantRecepcion] = useState({});
+  const [busqRecepcion, setBusqRecepcion] = useState("");
+  const [tipoRecepcion, setTipoRecepcion] = useState("entrada");
+  const [usuario, setUsuario] = useState("");
+  const [modalUsuario, setModalUsuario] = useState(false);
+  const [usuarios, setUsuarios] = useState([]);
+  const [pinUsuario, setPinUsuario] = useState("");
+  const [nombreSeleccionado, setNombreSeleccionado] = useState("");
+  const [errorLogin, setErrorLogin] = useState("");
+  const [modalGestionUsuarios, setModalGestionUsuarios] = useState(false);
+  const [formUsuario, setFormUsuario] = useState({nombre:"",pin:"",rol:"trabajador"});
+  const [editandoPin, setEditandoPin] = useState(null);
+  const [filtroUsuario, setFiltroUsuario] = useState("Todos");
+  const [nuevoPinInput, setNuevoPinInput] = useState("");
+  const [mostrandoPin, setMostrandoPin] = useState({});
+  const [inputUsuario, setInputUsuario] = useState("");
+  const [modalRecepcionFrutas, setModalRecepcionFrutas] = useState(false);
+  const [cantRecepcionFrutas, setCantRecepcionFrutas] = useState({});
+  const [busqRecepcionFrutas, setBusqRecepcionFrutas] = useState("");
+  const [modalRecepcionMezclas, setModalRecepcionMezclas] = useState(false);
+  const [cantRecepcionMezclas, setCantRecepcionMezclas] = useState({});
+  const [busqRecepcionMezclas, setBusqRecepcionMezclas] = useState("");
+
+  const videoRef = useRef(null);
+  const freshDataRef = useRef(null);
+  const formPRef = useRef(FORM_VACIO);
+
+  useEffect(() => { 
+    cargar();
+    const u = localStorage.getItem("cafeteria_usuario");
+    if (u) setUsuario(u);
+    else setModalUsuario(true);
+  }, []);
+
+  // Alertas caducidad al cargar
+  useEffect(() => {
+    if (!productos.length) return;
+    const proximos = productos.filter(p => { const d = diasParaCaducar(p.caducidad); return d !== null && d <= 7 && d >= 0; });
+    if (proximos.length) alert(`⚠️ ${proximos.length} producto(s) caducan en 7 días o menos:\n${proximos.map(p=>`• ${p.nombre} (${diasParaCaducar(p.caducidad)} días)`).join("\n")}`);
+  }, [productos.length]);
+
+  async function cargar() {
+    try {
+      const [rP, rH, rM, rPv, rConf] = await Promise.all([
+        supabase.from("inventario").select("*").order("id"),
+        supabase.from("historial").select("*").order("fecha", {ascending: false}).limit(500),
+        supabase.from("mermas").select("*").order("fecha", {ascending: false}).limit(300),
+        supabase.from("proveedores").select("*").order("id"),
+        supabase.from("configuracion").select("*"),
+      ]);
+      const prods = rP.data && rP.data.length > 0 ? rP.data.map(dbToProducto) : null;
+      if (!prods) {
+        const inserts = PRODUCTOS_INICIALES.map(productoToDb);
+        await supabase.from("inventario").insert(inserts);
+        setProductos(PRODUCTOS_INICIALES);
+      } else {
+        setProductos(prods);
+      }
+      setHistorial(rH.data ? rH.data.map(dbToMovimiento) : []);
+      setMermas(rM.data ? rM.data.map(dbToMerma) : []);
+      setProveedores(rPv.data ? rPv.data.map(dbToProveedor) : []);
+
+      const [rFrutas, rMezclas] = await Promise.all([
+        supabase.from("frutas_estado").select("*").order("id"),
+        supabase.from("mezclas_estado").select("*").order("id"),
+      ]);
+      if (rFrutas.data && rFrutas.data.length > 0) {
+        setFrutas(FRUTAS_INICIALES.map(f => {
+          const db = rFrutas.data.find(r => r.id === f.id);
+          return db ? {...f, cantidad: db.cantidad, estado: db.estado, fechaCompra: db.fecha_compra||"", precio: db.precio||0, minimo: db.minimo||0, minimoFS: db.minimo_fs||0, notas: db.notas||""} : f;
+        }));
+      } else {
+        await supabase.from("frutas_estado").insert(FRUTAS_INICIALES.map(f => ({
+          id: f.id, nombre: f.nombre, emoji: f.emoji, unidad: f.unidad,
+          cantidad: 0, estado: "Fresca", fecha_compra: "", precio: 0,
+          minimo: 0, minimo_fs: 0, notas: ""
+        })));
+      }
+      if (rMezclas.data && rMezclas.data.length > 0) {
+        setMezclas(MEZCLAS_INICIALES.map(m => {
+          const db = rMezclas.data.find(r => r.id === m.id);
+          return db ? {...m, sobrante: db.sobrante||0, optimoSemana: db.optimo_semana||0, optimoFS: db.optimo_fs||0, notas: db.notas||"", fechaRegistro: db.fecha_registro||"", unidad: db.unidad||m.unidad||"L"} : m;
+        }));
+      } else {
+        await supabase.from("mezclas_estado").insert(MEZCLAS_INICIALES.map(m => ({
+          id: m.id, nombre: m.nombre, emoji: m.emoji, unidad: m.unidad||"L",
+          sobrante: 0, optimo_semana: 0, optimo_fs: 0, notas: "", fecha_registro: null
+        })));
+      }
+      const rUsuarios = await supabase.from("usuarios").select("*").eq("activo", true).order("nombre");
+      if (rUsuarios.data) setUsuarios(rUsuarios.data);
+    } catch(e) { console.error("Error cargando datos:", e); }
+  }
+
+  async function guardar(p,h,m,pv) {
+    setGuardando(true);
+    setTimeout(()=>setGuardando(false),500);
+  }
+
+  async function ajustarRapido(id, delta) {
+    const prod = productos.find(p=>p.id===id); if (!prod) return;
+    const nuevaCant = Math.max(0, prod.cantidad + delta);
+    const nuevaLista = productos.map(p=>p.id===id?{...p,cantidad:nuevaCant}:p);
+    const mov = {id:Date.now(),productoId:id,nombre:prod.nombre,unidad:prod.unidad,tipo:delta>0?"entrada":"consumo",cantidad:Math.abs(delta),antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString(),usuario:usuario||"Desconocido"};
+    const nuevoH = [mov,...historial].slice(0,500);
+    setProductos(nuevaLista); setHistorial(nuevoH);
+    guardar();
+    await Promise.all([
+      supabase.from("inventario").update({cantidad:nuevaCant}).eq("id",id),
+      supabase.from("historial").insert(movimientoToDb(mov)),
+    ]);
+  }
+
+  async function ajusteManual() {
+    if (!ajusteItem) return;
+    let nuevaCant;
+    if (esGranel(ajusteItem)) {
+      nuevaCant = Math.max(0, partesADecimal(ajusteEnteroGranel, ajusteFraccionGranel));
+    } else {
+      if (ajusteDelta==="") return;
+      nuevaCant = Math.max(0,+ajusteDelta);
+    }
+    const prod = productos.find(p=>p.id===ajusteItem.id);
+    const nuevaLista = productos.map(p=>p.id===ajusteItem.id?{...p,cantidad:nuevaCant}:p);
+    const mov = {id:Date.now(),productoId:ajusteItem.id,nombre:prod.nombre,unidad:prod.unidad,tipo:"ajuste",cantidad:Math.abs(nuevaCant-prod.cantidad),antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
+    const nuevoH = [mov,...historial].slice(0,500);
+    setProductos(nuevaLista); setHistorial(nuevoH);
+    guardar();
+    await Promise.all([
+      supabase.from("inventario").update({cantidad:nuevaCant}).eq("id",ajusteItem.id),
+      supabase.from("historial").insert(movimientoToDb(mov)),
+    ]);
+    setModal(null); setAjusteItem(null); setAjusteDelta(""); setAjusteEnteroGranel(""); setAjusteFraccionGranel("");
+  }
+
+  const TU_NUMERO = "5215544690495";
+
+  function cerrarDiaFrutas() {
+    const fs = esFindeSemana();
+    const mañana = new Date();
+    mañana.setDate(mañana.getDate() + 1);
+    const esMañanaFS = [0,5,6].includes(mañana.getDay());
+    
+    let msg = "🍓 *CIERRE DE FRUTAS* " + new Date().toLocaleDateString("es-MX") + "\n\n";
+    msg += "📦 *SOBRANTE HOY:*\n";
+    frutas.forEach(f => {
+      const minimoMañana = esMañanaFS && f.minimoFS > 0 ? f.minimoFS : f.minimo;
+      const falta = Math.max(0, minimoMañana - f.cantidad);
+      const estado = f.estado === "Fresca" ? "✅" : f.estado === "Regular" ? "⚠️" : "🔴";
+      msg += `${estado} ${f.nombre}: ${f.cantidad} ${f.unidad}`;
+      if (falta > 0) msg += ` _(pedir ${falta} ${f.unidad})_`;
+      msg += "\n";
+    });
+
+    const faltantes = frutas.filter(f => {
+      const minimoMañana = esMañanaFS && f.minimoFS > 0 ? f.minimoFS : f.minimo;
+      return f.cantidad < minimoMañana;
+    });
+
+    if (faltantes.length > 0) {
+      msg += "\n🛒 *HAY QUE PEDIR:*\n";
+      faltantes.forEach(f => {
+        const minimoMañana = esMañanaFS && f.minimoFS > 0 ? f.minimoFS : f.minimo;
+        const falta = minimoMañana - f.cantidad;
+        msg += `• ${f.nombre}: ${falta} ${f.unidad}\n`;
+      });
+    } else {
+      msg += "\n✅ *Todo en niveles correctos*";
+    }
+
+    const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank");
+  }
+
+  async function confirmarRecepcionFrutas() {
+    const updates = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcionFrutas)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const fruta = frutas.find(f => f.id === id);
+      if (!fruta) continue;
+      const nuevaCant = Math.round((fruta.cantidad + +cant) * 10) / 10;
+      updates.push(supabase.from("frutas_estado").update({cantidad: nuevaCant, actualizado_en: new Date().toISOString()}).eq("id", id));
+    }
+    await Promise.all(updates);
+    setFrutas(fr => fr.map(f => {
+      const cant = cantRecepcionFrutas[f.id];
+      if (!cant || +cant <= 0) return f;
+      return {...f, cantidad: Math.round((f.cantidad + +cant) * 10) / 10};
+    }));
+    setCantRecepcionFrutas({});
+    setModalRecepcionFrutas(false);
+    alert("✅ Frutas actualizadas correctamente");
+  }
+
+  async function confirmarRecepcionMezclas() {
+    const updates = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcionMezclas)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const mezcla = mezclas.find(m => m.id === id);
+      if (!mezcla) continue;
+      const nuevaSob = Math.round((mezcla.sobrante + +cant) * 10) / 10;
+      updates.push(supabase.from("mezclas_estado").update({sobrante: nuevaSob}).eq("id", id));
+    }
+    await Promise.all(updates);
+    setMezclas(ms => ms.map(m => {
+      const cant = cantRecepcionMezclas[m.id];
+      if (!cant || +cant <= 0) return m;
+      return {...m, sobrante: Math.round((m.sobrante + +cant) * 10) / 10};
+    }));
+    setCantRecepcionMezclas({});
+    setModalRecepcionMezclas(false);
+    alert("✅ Mezclas actualizadas correctamente");
+  }
+
+  // Descuenta del inventario todos los ingredientes de la receta de una mezcla
+  async function producirMezcla() {
+    if (!modalProducir || produciendo) return;
+    const receta = RECETAS[modalProducir.id];
+    if (!receta) return;
+    const tandas = Math.max(1, Math.floor(+tandasProducir || 1));
+
+    // Calcular lo que se necesita y validar que alcance
+    const faltantes = [];
+    const plan = [];
+    for (const ing of receta.ingredientes) {
+      const prod = productos.find(p => p.id === ing.id);
+      if (!prod) { faltantes.push(`Ingrediente ID ${ing.id} ya no existe en el inventario`); continue; }
+      const necesita = Math.round(ing.cantidad * tandas * 1000) / 1000;
+      if (prod.cantidad < necesita) {
+        faltantes.push(`${prod.nombre}: necesitas ${esGranel(prod)?fmtGranel(necesita,prod.unidad):`${necesita} ${prod.unidad}`}, solo hay ${esGranel(prod)?fmtGranel(prod.cantidad,prod.unidad):`${prod.cantidad} ${prod.unidad}`}`);
+      }
+      plan.push({ prod, necesita });
+    }
+
+    if (faltantes.length > 0) {
+      alert("🚫 No se puede producir, falta inventario:\n\n" + faltantes.join("\n"));
+      return;
+    }
+
+    setProduciendo(true);
+    const updates = [];
+    const movimientos = [];
+    const nuevosMovs = [];
+    let baseId = Date.now();
+    for (const { prod, necesita } of plan) {
+      const nuevaCant = Math.round((prod.cantidad - necesita) * 1000) / 1000;
+      const mov = { id: baseId++, productoId: prod.id, nombre: prod.nombre, unidad: prod.unidad, tipo: "consumo", cantidad: necesita, antes: prod.cantidad, despues: nuevaCant, fecha: new Date().toISOString(), usuario: (usuario||"Desconocido") + " · 🍳 " + (receta.nombre || modalProducir.nombre) + (tandas>1?` x${tandas}`:"") };
+      updates.push(supabase.from("inventario").update({ cantidad: nuevaCant }).eq("id", prod.id));
+      movimientos.push(supabase.from("historial").insert(movimientoToDb(mov)));
+      nuevosMovs.push(mov);
+    }
+    await Promise.all([...updates, ...movimientos]);
+
+    // Actualizar estado local
+    setProductos(ps => ps.map(p => {
+      const item = plan.find(x => x.prod.id === p.id);
+      if (!item) return p;
+      return { ...p, cantidad: Math.round((p.cantidad - item.necesita) * 1000) / 1000 };
+    }));
+    setHistorial(h => [...nuevosMovs, ...h].slice(0, 500));
+
+    setProduciendo(false);
+    setModalProducir(null);
+    setTandasProducir("1");
+    alert(`✅ ${receta.nombre || modalProducir.nombre} producida${tandas>1?` (${tandas} tandas)`:""}. Ingredientes descontados del inventario.`);
+  }
+
+  async function confirmarRecepcion() {
+    const updates = [];
+    const movimientos = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcion)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const prod = productos.find(p => p.id === id);
+      if (!prod) continue;
+      const nuevaCant = prod.cantidad + +cant;
+      updates.push(supabase.from("inventario").update({cantidad: nuevaCant}).eq("id", id));
+      movimientos.push(supabase.from("historial").insert({
+        id: Date.now() + id,
+        producto_id: id,
+        nombre: prod.nombre,
+        unidad: prod.unidad,
+        tipo: "entrada",
+        cantidad: +cant,
+        antes: prod.cantidad,
+        despues: nuevaCant,
+        fecha: new Date().toISOString()
+      }));
+    }
+    await Promise.all([...updates, ...movimientos]);
+    const nuevosProductos = productos.map(p => {
+      const cant = cantRecepcion[p.id];
+      if (!cant || +cant <= 0) return p;
+      return {...p, cantidad: p.cantidad + +cant};
+    });
+    setProductos(nuevosProductos);
+    setHistorial(h => {
+      const nuevos = Object.entries(cantRecepcion)
+        .filter(([,cant]) => cant && +cant > 0)
+        .map(([idStr, cant]) => {
+          const prod = productos.find(p => p.id === +idStr);
+          return {id: Date.now() + +idStr, productoId: +idStr, nombre: prod.nombre, unidad: prod.unidad, tipo: "entrada", cantidad: +cant, antes: prod.cantidad, despues: prod.cantidad + +cant, fecha: new Date().toISOString()};
+        });
+      return [...nuevos, ...h].slice(0, 500);
+    });
+    setCantRecepcion({});
+    setModalRecepcion(false);
+    alert("✅ Pedido recibido y actualizado correctamente");
+  }
+
+  async function confirmarSalida() {
+    const updates = [];
+    const movimientos = [];
+    for (const [idStr, cant] of Object.entries(cantRecepcion)) {
+      if (!cant || +cant <= 0) continue;
+      const id = +idStr;
+      const prod = productos.find(p => p.id === id);
+      if (!prod) continue;
+      const nuevaCant = Math.max(0, prod.cantidad - +cant);
+      updates.push(supabase.from("inventario").update({cantidad: nuevaCant}).eq("id", id));
+      movimientos.push(supabase.from("historial").insert({
+        id: Date.now() + id,
+        producto_id: id,
+        nombre: prod.nombre,
+        unidad: prod.unidad,
+        tipo: "consumo",
+        cantidad: +cant,
+        antes: prod.cantidad,
+        despues: nuevaCant,
+        fecha: new Date().toISOString()
+      }));
+    }
+    await Promise.all([...updates, ...movimientos]);
+    const nuevosProductos = productos.map(p => {
+      const cant = cantRecepcion[p.id];
+      if (!cant || +cant <= 0) return p;
+      return {...p, cantidad: Math.max(0, p.cantidad - +cant)};
+    });
+    setProductos(nuevosProductos);
+    setCantRecepcion({});
+    setModalRecepcion(false);
+    alert("✅ Salida registrada correctamente");
+  }
+
+  async function guardarProducto() {
+    const fp = formPRef.current;
+    if (!fp.nombre) return;
+    const cantComprar = fp.optimo ? Math.max(0, +fp.optimo - +fp.cantidad) : 0;
+    guardar();
+    if (editando) {
+      const updateData = {
+        nombre: fp.nombre,
+        barcode: fp.barcode || "",
+        categoria: fp.categoria,
+        cantidad: +fp.cantidad,
+        unidad: fp.unidad,
+        minimo: +fp.minimo,
+        minimo_fs: +fp.minimoFS || 0,
+        maximo: +fp.maximo || 0,
+        optimo: +fp.optimo || 0,
+        cant_comprar: cantComprar,
+        costo: +fp.costo || 0,
+        ubicacion: fp.ubicacion || "",
+        caducidad: fp.caducidad || "",
+        emoji: fp.emoji || "📦",
+        es_variable: fp.esVariable || false,
+        presentacion: fp.presentacion || "",
+        costo_presentacion: +fp.costoPresentacion || 0,
+      };
+      updateData.proveedor = (fp.proveedor && fp.proveedor.trim() !== "") 
+        ? fp.proveedor 
+        : (freshDataRef.current?.proveedor || "");
+      const nueva = productos.map(p=>p.id===editando?{...p,...fp,cantComprar,proveedor:updateData.proveedor||p.proveedor}:p);
+      setProductos(nueva);
+      await supabase.from("inventario").update(updateData).eq("id",editando);
+    } else {
+      const id = Date.now();
+      const prod = {...fp, id, cantidad:+fp.cantidad, minimo:+fp.minimo, maximo:+fp.maximo||0, optimo:+fp.optimo||0, costo:+fp.costo||0, cantComprar};
+      setProductos(p=>[...p, prod]);
+      await supabase.from("inventario").insert(productoToDb(prod));
+    }
+    setModal(null);
+  }
+
+  async function eliminarProducto(id) {
+    setProductos(p=>p.filter(x=>x.id!==id));
+    guardar();
+    await supabase.from("inventario").delete().eq("id",id);
+  }
+
+  async function registrarMerma() {
+    if (!formM.productoId || !formM.cantidad) return;
+    const prod = productos.find(p=>p.id===+formM.productoId); if (!prod) return;
+    const nuevaCant = Math.max(0, prod.cantidad - +formM.cantidad);
+    const nuevaLista = productos.map(p=>p.id===prod.id?{...p,cantidad:nuevaCant}:p);
+    const merma = {id:Date.now(),productoId:prod.id,nombre:prod.nombre,unidad:prod.unidad,cantidad:+formM.cantidad,motivo:formM.motivo,notas:formM.notas,costoEstimado:(prod.costo||0)*+formM.cantidad,antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
+    const mov = {id:Date.now()+1,productoId:prod.id,nombre:prod.nombre,unidad:prod.unidad,tipo:"merma",cantidad:+formM.cantidad,antes:prod.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
+    setProductos(nuevaLista);
+    setMermas(m=>[merma,...m].slice(0,300));
+    setHistorial(h=>[mov,...h].slice(0,500));
+    guardar();
+    await Promise.all([
+      supabase.from("inventario").update({cantidad:nuevaCant}).eq("id",prod.id),
+      supabase.from("mermas").insert(mermaToDb(merma)),
+      supabase.from("historial").insert(movimientoToDb(mov)),
+    ]);
+    setFormM({productoId:"",cantidad:"",motivo:"Caducidad",notas:""}); setModal(null);
+  }
+
+  async function guardarProveedor() {
+    if (!formProv.nombre) return;
+    const prov = {id:Date.now(),...formProv};
+    setProveedores(p=>[...p,prov]);
+    guardar();
+    await supabase.from("proveedores").insert({id:prov.id,nombre:prov.nombre,contacto:prov.contacto||"",telefono:prov.telefono||"",dias_entrega:prov.diasEntrega||""});
+    setFormProv({nombre:"",contacto:"",telefono:"",diasEntrega:""}); setModal(null);
+  }
+
+  async function escanearBarcode() {
+    setScanActivo(true); setModal("scanner");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+    } catch(e) { alert("No se pudo acceder a la cámara. Verifica los permisos."); setScanActivo(false); setModal(null); }
+  }
+
+  function cerrarScanner() {
+    if (videoRef.current?.srcObject) { videoRef.current.srcObject.getTracks().forEach(t=>t.stop()); }
+    setScanActivo(false); setModal(null);
+  }
+
+  function generarExport() {
+    const fecha = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
+    let txt = `====== INVENTARIO CAFETERÍA ======\nFecha: ${fecha}\nModo: ${modoFinSemana?"Fin de semana":"Entre semana"}\n\n`;
+    txt += `--- PRODUCTOS (${productos.length}) ---\n`;
+    productos.forEach(p=>{
+      const s=statusInfo(p);
+      txt+=`• ${p.emoji} ${p.nombre} | ${p.cantidad}/${p.optimo||"?"} ${p.unidad} | Mín:${p.minimo} Máx:${p.maximo} | Comprar:${calcComprar(p)} | ${p.categoria} | ${p.proveedor||"Sin proveedor"} | ${p.ubicacion||"Sin ubicación"} | Costo:$${p.costo||0} | ${s.label}${p.caducidad?" | Cad:"+p.caducidad:""}\n`;
+    });
+    txt+=`\n--- PEDIDOS URGENTES ---\n`;
+    productos.filter(p=>p.cantidad<=getMinimoActivo(p)).forEach(p=>{txt+=`• ${p.nombre} | Comprar: ${calcComprar(p)} ${p.unidad} | Proveedor: ${p.proveedor||"Sin asignar"}\n`;});
+    txt+=`\n--- MERMAS (${mermas.length}) ---\n`;
+    mermas.slice(0,100).forEach(m=>{txt+=`${fmt(m.fecha)} | ${m.nombre} | ${m.cantidad} ${m.unidad} | ${m.motivo} | $${m.costoEstimado?.toFixed(2)||0}\n`;});
+    txt+=`\n--- HISTORIAL (${historial.length}) ---\n`;
+    historial.slice(0,100).forEach(h=>{txt+=`${fmt(h.fecha)} | ${h.tipo.toUpperCase()} | ${h.nombre} | ${h.antes}→${h.despues} ${h.unidad}\n`;});
+    txt+=`\n====== FIN DEL REPORTE ======`;
+    return txt;
+  }
+
+  function copiarExport() { navigator.clipboard.writeText(generarExport()).then(()=>{setCopiado(true);setTimeout(()=>setCopiado(false),2500);}); }
+
+  const filtrados = productos.filter(p=>{
+    const b=p.nombre.toLowerCase().includes(busqueda.toLowerCase())||(p.proveedor||"").toLowerCase().includes(busqueda.toLowerCase())||(p.barcode||"").includes(busqueda);
+    const c=filtroCat==="Todas"||p.categoria===filtroCat;
+    return b&&c;
+  });
+
+  const bajoStock = productos.filter(p=>p.cantidad<=getMinimoActivo(p)).length;
+  const totalMermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
+  const proxCaducar = productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=7&&d>=0;}).length;
+  const calcPresentaciones = (p) => {
+    if (!p.presentacion || !p.costoPresentacion) return null;
+    const match = p.presentacion.match(/([\d.]+)/);
+    if (!match) return null;
+    const unidadesPorPres = parseFloat(match[1]);
+    const pres = Math.ceil(calcComprar(p) / unidadesPorPres);
+    return { pres, costo: pres * p.costoPresentacion, unidadesPorPres };
+  };
+  const gastoEstimado = productos.filter(p=>p.cantidad<=getMinimoActivo(p)).reduce((a,p)=>{
+    const cp = calcPresentaciones(p);
+    return a + (cp ? cp.costo : calcComprar(p)*(p.costo||0));
+  },0);
+
+  const puedeProducir = NOMBRES_RECETAS.includes(usuario);
+
+  const C={bg:"#060810",card:"#0d1117",border:"#1a2235",accent:"#7dd3fc",text:"#e2e8f0",muted:"#64748b",warn:"#fbbf24",danger:"#f87171",success:"#34d399",info:"#818cf8"};
+  const inp={width:"100%",background:"rgba(7,10,18,0.8)",border:"1px solid rgba(125,211,252,0.15)",borderRadius:"10px",padding:"10px 13px",color:C.text,fontFamily:"inherit",fontSize:"14px",outline:"none",boxSizing:"border-box",backdropFilter:"blur(10px)"};
+  const lbl={fontSize:"10px",color:"#7dd3fc80",textTransform:"uppercase",letterSpacing:"2px",display:"block",marginBottom:"5px",fontWeight:"500"};
+  const btnP={background:"linear-gradient(135deg,#7dd3fc,#818cf8)",border:"none",color:"#060810",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"600",fontSize:"13px",boxShadow:"0 0 20px rgba(125,211,252,0.2)"};
+  const btnG={background:"rgba(13,17,23,0.8)",border:"1px solid rgba(125,211,252,0.15)",color:C.muted,padding:"9px 14px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",backdropFilter:"blur(10px)"};
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#060810 0%,#080d1a 50%,#060810 100%)",color:C.text,fontFamily:"'Outfit','Segoe UI',sans-serif"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');*{box-sizing:border-box}body{background:#060810}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#7dd3fc,#818cf8);border-radius:4px}select option{background:#0d1117}.rh:hover{background:#0f1520!important;border-color:#7dd3fc30!important}.ti{transition:all 0.2s cubic-bezier(0.4,0,0.2,1)}@keyframes holo{0%,100%{border-color:#7dd3fc30}33%{border-color:#818cf830}66%{border-color:#34d39930}}.holo-border{animation:holo 4s ease-in-out infinite}@keyframes pulse-glow{0%,100%{box-shadow:0 0 0 0 #7dd3fc20}50%{box-shadow:0 0 20px 2px #7dd3fc15}}.glow{animation:pulse-glow 3s ease-in-out infinite}`}</style>
+
+      {/* TOP BAR */}
+      <div style={{background:"rgba(6,8,16,0.95)",backdropFilter:"blur(20px)",borderBottom:"1px solid rgba(125,211,252,0.1)",padding:"0 16px",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:"56px",gap:"8px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+            <div style={{background:"linear-gradient(135deg,#7dd3fc,#818cf8,#34d399)",borderRadius:"10px",width:"32px",height:"32px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",flexShrink:0,boxShadow:"0 0 15px rgba(125,211,252,0.3)"}}>☕</div>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"14px"}}>Mi Cafetería</div>
+              <div style={{fontSize:"10px",color:C.muted,letterSpacing:"1px",textTransform:"uppercase"}}>Inventario</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:"6px",alignItems:"center",flexWrap:"wrap"}}>
+            {guardando&&<span style={{fontSize:"10px",color:C.accent,opacity:0.8}}>● Guardando</span>}
+            {usuario&&<button onClick={()=>{setInputUsuario(usuario);setModalUsuario(true);}} style={{...btnG,fontSize:"10px",padding:"4px 8px",color:"#a78bfa",borderColor:"#a78bfa30"}}>👤 {usuario}</button>}
+<div style={{fontSize:"11px",color:modoFinSemana?"#f59e0b":C.info,padding:"4px 8px",borderRadius:"6px",background:modoFinSemana?"#f59e0b15":"#60a5fa15"}}>{modoFinSemana?"🌅 Fin semana":"📅 Semana"}</div>
+            <button onClick={()=>setModal("exportar")} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:C.accent,borderColor:"#6ee7b730"}}>📤</button>
+            <button onClick={()=>{setProvRecepcion("Todos");setCantRecepcion({});setModalRecepcion(true);}} style={{...btnG,fontSize:"11px",padding:"6px 10px",color:"#6ee7b7",borderColor:"#6ee7b730"}}>📦</button>
+            <button onClick={()=>{setEditando(null);setFormP(FORM_VACIO);setModal("producto");}} style={{...btnP,padding:"7px 12px",fontSize:"13px"}}>＋</button>
+          </div>
+        </div>
+        {/* TABS */}
+        <div style={{display:"flex",gap:"0",borderTop:`1px solid ${C.border}`,overflowX:"auto"}}>
+          {TABS.map(t=>(
+            <button key={t.id} onClick={()=>{setTab(t.id);if(t.id!=="pedidos")setPinOk(false);}} style={{background:"none",border:"none",borderBottom:tab===t.id?`2px solid ${C.accent}`:"2px solid transparent",color:tab===t.id?C.accent:C.muted,padding:"9px 14px",cursor:"pointer",fontFamily:"inherit",fontWeight:tab===t.id?"600":"400",fontSize:"12px",display:"flex",alignItems:"center",gap:"5px",marginBottom:"-1px",whiteSpace:"nowrap"}}>
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* STATS */}
+      <div style={{display:"flex",gap:"8px",padding:"12px 16px",overflowX:"auto"}}>
+        {[
+          {label:"Productos",value:productos.length,icon:"📦",color:C.accent},
+          {label:"Stock bajo",value:bajoStock,icon:"⚠️",color:C.warn},
+          {label:"Por caducar",value:proxCaducar,icon:"📅",color:"#a78bfa"},
+          {label:"Mermas mes",value:`$${totalMermasMes.toFixed(0)}`,icon:"📉",color:C.danger},
+          {label:"Gasto pedido",value:`$${gastoEstimado.toFixed(0)}`,icon:"🛒",color:C.info},
+        ].map((s,i)=>(
+          <div key={i} style={{background:"rgba(13,17,23,0.7)",border:`1px solid ${s.color}20`,borderRadius:"12px",padding:"10px 14px",flexShrink:0,minWidth:"100px",backdropFilter:"blur(10px)",boxShadow:`0 0 15px ${s.color}10`}}>
+            <div style={{fontSize:"16px"}}>{s.icon}</div>
+            <div style={{fontSize:"17px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.value}</div>
+            <div style={{fontSize:"9px",color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginTop:"1px"}}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ===== INVENTARIO ===== */}
+      {tab==="inventario"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",gap:"8px",marginBottom:"12px",flexWrap:"wrap"}}>
+            <div style={{flex:"1",minWidth:"180px",position:"relative"}}>
+              <input placeholder="🔍 Buscar nombre, proveedor o código..." value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{...inp,paddingRight:"40px"}}/>
+              <button onClick={escanearBarcode} style={{position:"absolute",right:"8px",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:"18px"}} title="Escanear código">📷</button>
+            </div>
+            <select value={filtroCat} onChange={e=>setFiltroCat(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
+              <option>Todas</option>
+              {CATEGORIAS.map(c=><option key={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {bajoStock>0&&(
+            <div style={{background:"#f59e0b10",border:"1px solid #f59e0b30",borderRadius:"10px",padding:"9px 14px",marginBottom:"10px",fontSize:"12px",color:C.warn}}>
+              ⚠️ <strong>{bajoStock} producto(s)</strong> con stock bajo — revisa la pestaña <strong>Pedidos</strong>
+            </div>
+          )}
+          {proxCaducar>0&&(
+            <div style={{background:"#a78bfa10",border:"1px solid #a78bfa30",borderRadius:"10px",padding:"9px 14px",marginBottom:"10px",fontSize:"12px",color:"#a78bfa"}}>
+              📅 <strong>{proxCaducar} producto(s)</strong> caducan en los próximos 7 días
+            </div>
+          )}
+
+          {filtrados.length===0?(
+            <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
+              <div style={{fontSize:"36px",marginBottom:"10px"}}>📭</div>
+              No hay productos
+            </div>
+          ):(
+            <div style={{display:"grid",gap:"7px"}}>
+              {filtrados.map(p=>{
+                const s=statusInfo(p);
+                const dias=diasParaCaducar(p.caducidad);
+                const cad=dias!==null&&dias<=7;
+                return(
+                  <div key={p.id} className="rh ti" style={{background:"rgba(13,17,23,0.8)",border:`1px solid ${cad?"rgba(167,139,250,0.3)":p.cantidad<=getMinimoActivo(p)?s.color+"30":"rgba(125,211,252,0.08)"}`,borderRadius:"12px",padding:"10px 14px",display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",backdropFilter:"blur(10px)"}}>
+                    <div style={{width:"36px",height:"36px",background:s.bg,borderRadius:"9px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"19px",flexShrink:0}}>{p.emoji||"📦"}</div>
+                    <div style={{flex:"1",minWidth:"120px"}}>
+                      <div style={{fontWeight:"600",fontSize:"13px"}}>{p.nombre}{p.esVariable&&<span style={{fontSize:"9px",background:"#f59e0b20",color:C.warn,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>VARIABLE</span>}{esGranel(p)&&<span style={{fontSize:"9px",background:"#7dd3fc20",color:C.accent,borderRadius:"4px",padding:"1px 5px",marginLeft:"5px"}}>GRANEL</span>}</div>
+                      <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
+                        {p.categoria.split(" ").slice(1).join(" ")}
+                        {p.ubicacion&&<span style={{color:"#60a5fa"}}> · 📍{p.ubicacion}</span>}
+                        
+                        {cad&&<span style={{color:"#a78bfa"}}> · ⚠️ Cad en {dias}d</span>}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted,textTransform:"uppercase",marginBottom:"3px"}}>Cantidad</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <button className="ti" onClick={()=>ajustarRapido(p.id,-1)} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
+                        <button onClick={()=>{setAjusteItem(p);setAjusteDelta(p.cantidad);const{entero,fraccion}=decimalAPartes(p.cantidad);setAjusteEnteroGranel(entero===0&&fraccion===0?"":String(entero));setAjusteFraccionGranel(fraccion===0?"":String(fraccion));setModal("ajuste");}} style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"7px",padding:"2px 8px",cursor:"pointer",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:s.color,fontSize:"13px",minWidth:esGranel(p)?"86px":"64px",textAlign:"center"}}>
+                          {esGranel(p)?fmtGranel(p.cantidad,p.unidad):`${p.cantidad} ${p.unidad}`}
+                        </button>
+                        <button className="ti" onClick={()=>ajustarRapido(p.id,1)} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center",fontSize:"10px",color:C.muted}}>
+                      <div>Ópt: <span style={{color:C.info,fontFamily:"'DM Mono',monospace"}}>{p.optimo||"—"}</span></div>
+                      <div>Comprar: <span style={{color:C.accent,fontFamily:"'DM Mono',monospace",fontWeight:"600"}}>{calcComprar(p)}</span></div>
+                    </div>
+                    <div style={{background:s.bg,border:`1px solid ${s.color}40`,borderRadius:"6px",padding:"3px 8px",fontSize:"10px",color:s.color,fontWeight:"600",minWidth:"70px",textAlign:"center"}}>{s.icon} {s.label}</div>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      <button className="ti" onClick={()=>{setFormM({productoId:p.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>📉</button>
+                      <button className="ti" onClick={()=>{setEditando(p.id);
+(async()=>{
+  const {data} = await supabase.from("inventario").select("*").eq("id",p.id).single();
+  const fresh = data ? dbToProducto(data) : p;
+  freshDataRef.current = fresh;
+  setFormP({...fresh,cantidad:String(fresh.cantidad),minimo:String(fresh.minimo),maximo:String(fresh.maximo||""),optimo:String(fresh.optimo||""),costo:String(fresh.costo||""),presentacion:fresh.presentacion||"",costoPresentacion:String(fresh.costoPresentacion||"")});
+  setModal("producto");
+})();}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>✏️</button>
+                      <button className="ti" onClick={()=>eliminarProducto(p.id)} style={{background:"#ef444420",border:"none",color:C.danger,padding:"5px 8px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== PEDIDOS ===== */}
+      {tab==="pedidos"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          {!pinOk ? (
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",gap:"16px"}}>
+              <div style={{fontSize:"36px"}}>🔐</div>
+              <div style={{fontWeight:"700",fontSize:"16px",color:C.text}}>Acceso restringido</div>
+              <div style={{fontSize:"12px",color:C.muted}}>Solo el administrador puede ver los pedidos</div>
+              <input
+                type="password"
+                placeholder="Ingresa tu PIN..."
+                value={pinInput}
+                onChange={e=>setPinInput(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter"){if(pinInput==="2404"){setPinOk(true);setPinInput("");}else{setPinInput("");alert("PIN incorrecto");}}}
+                }
+                style={{...inp,textAlign:"center",letterSpacing:"8px",fontSize:"20px",maxWidth:"200px"}}
+                autoFocus
+              />
+              <button onClick={()=>{if(pinInput==="2404"){setPinOk(true);setPinInput("");}else{setPinInput("");alert("PIN incorrecto");}}} style={{...btnP}}>Entrar</button>
+            </div>
+          ) : (
+          <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>Lista de Pedidos</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Modo: <span style={{color:modoFinSemana?C.warn:C.info}}>{modoFinSemana?"🌅 Fin de semana":"📅 Entre semana"}</span></div>
+            </div>
+            <div style={{display:"flex",gap:"6px"}}>
+              <button onClick={()=>{
+                const win = window.open("","_blank");
+                const fecha = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
+                const provs = [...new Set(productos.filter(p=>p.cantidad<=getMinimoActivo(p)).map(p=>p.proveedor||"Sin proveedor asignado"))].sort();
+                let html = `<html><head><title>Lista de Compras</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{font-size:18px;margin-bottom:4px}p{color:#666;font-size:12px;margin-bottom:20px}h2{font-size:14px;background:#f0f0f0;padding:6px 10px;border-radius:4px;margin-top:16px}table{width:100%;border-collapse:collapse;margin-top:8px}td{padding:6px 8px;border-bottom:1px solid #eee;font-size:13px}.check{width:20px;text-align:center}input[type=checkbox]{width:14px;height:14px}@media print{button{display:none}}</style></head><body>`;
+                html += `<h1>🛒 Lista de Compras</h1><p>${fecha} · Modo: ${modoFinSemana?"Fin de semana":"Entre semana"}</p>`;
+                html += `<button onclick="window.print()" style="padding:8px 16px;background:#6ee7b7;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:16px">🖨️ Imprimir</button>`;
+                provs.forEach(prov=>{
+                  const items = productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=getMinimoActivo(p));
+                  if(!items.length) return;
+                  html += `<h2>🏪 ${prov}</h2><table>`;
+                  items.forEach(p=>{
+                    html += `<tr><td class="check"><input type="checkbox"/></td><td>${p.emoji} ${p.nombre}</td><td style="color:#666">${p.cantidad} ${p.unidad} actual</td><td style="font-weight:bold">Pedir: ${calcComprar(p)} ${p.unidad}</td>${p.costo>0?`<td style="color:#666">$${(calcComprar(p)*p.costo).toFixed(2)}</td>`:""}</tr>`;
+                  });
+                  html += `</table>`;
+                });
+                html += `</body></html>`;
+                win.document.write(html);
+                win.document.close();
+              }} style={{...btnG,fontSize:"12px",padding:"7px 12px"}}>🖨️ Imprimir</button>
+  <button onClick={()=>setModalGestionUsuarios(true)} style={{...btnG,fontSize:"12px",padding:"7px 12px",color:"#a78bfa",borderColor:"#a78bfa30"}}>👥 Usuarios</button>
+              <button onClick={()=>{setFormProv({nombre:"",contacto:"",telefono:"",diasEntrega:""});setModal("proveedor");}} style={{...btnG,fontSize:"12px",padding:"7px 12px"}}>+ Proveedor</button>
+            </div>
+          </div>
+
+          {/* Gasto estimado */}
+          <div style={{background:"linear-gradient(135deg,#60a5fa15,#6ee7b715)",border:`1px solid ${C.info}30`,borderRadius:"12px",padding:"14px 16px",marginBottom:"14px"}}>
+            <div style={{fontSize:"11px",color:C.muted,marginBottom:"4px",textTransform:"uppercase",letterSpacing:"1px"}}>Gasto estimado del pedido</div>
+            <div style={{fontSize:"26px",fontWeight:"700",color:C.info,fontFamily:"'DM Mono',monospace"}}>${gastoEstimado.toFixed(2)}</div>
+          </div>
+
+          {/* Pedidos por proveedor */}
+          {[...new Set(productos.filter(p=>p.cantidad<=getMinimoActivo(p)).map(p=>p.proveedor||"Sin proveedor asignado"))].sort().map(prov=>{
+            const items=productos.filter(p=>(p.proveedor||"Sin proveedor asignado")===prov&&p.cantidad<=getMinimoActivo(p));
+            if(!items.length)return null;
+            return(
+              <div key={prov} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"10px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px",color:C.accent}}>🏪 {prov}</div>
+                {items.map(p=>(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                      <span style={{fontSize:"16px"}}>{p.emoji}</span>
+                      <div>
+                        <div style={{fontSize:"13px",fontWeight:"500"}}>{p.nombre}</div>
+                        <div style={{fontSize:"10px",color:C.muted}}>{p.proveedor||"Sin proveedor asignado"}{p.ubicacion&&` · 📍${p.ubicacion}`}</div>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:"13px",fontWeight:"700",color:C.accent,fontFamily:"'DM Mono',monospace"}}>Pedir: {calcComprar(p)} {p.unidad}</div>
+                      <div style={{fontSize:"10px",color:C.muted}}>Disponible: <span style={{color:C.warn,fontWeight:"600"}}>{p.cantidad} {p.unidad}</span></div>
+                      <div style={{fontSize:"10px",color:C.muted}}>Óptimo: <span style={{color:C.accent,fontWeight:"600"}}>{p.optimo} {p.unidad}</span> · Máx: <span style={{color:"#a78bfa",fontWeight:"600"}}>{p.maximo} {p.unidad}</span></div>
+                      {p.presentacion&&(()=>{const cp=calcPresentaciones(p);return cp?<div style={{fontSize:"10px",color:"#a78bfa",fontWeight:"600"}}>📦 {cp.pres} {p.presentacion} = ${cp.costo.toFixed(2)}</div>:null;})()}
+                      {!p.presentacion&&p.costo>0&&<div style={{fontSize:"10px",color:C.muted}}>${(calcComprar(p)*p.costo).toFixed(2)} · <span style={{color:C.accent}}>${p.costo}/{p.unidad}</span></div>}
+                      
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+
+          {productos.filter(p=>p.cantidad<=getMinimoActivo(p)).length===0&&(
+            <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
+              <div style={{fontSize:"36px",marginBottom:"10px"}}>✅</div>
+              Todo el inventario está en niveles óptimos
+            </div>
+          )}
+
+          {/* Proveedores */}
+          {proveedores.length>0&&(
+            <div style={{marginTop:"16px"}}>
+              <div style={{fontWeight:"700",fontSize:"14px",marginBottom:"10px"}}>📋 Mis Proveedores</div>
+              {proveedores.map(pv=>(
+                <div key={pv.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"12px 14px",marginBottom:"8px"}}>
+                  <div style={{fontWeight:"600",fontSize:"13px"}}>{pv.nombre}</div>
+                  <div style={{fontSize:"11px",color:C.muted,marginTop:"3px"}}>
+                    {pv.contacto&&<span>👤 {pv.contacto} · </span>}
+                    {pv.telefono&&<span>📞 {pv.telefono} · </span>}
+                    {pv.diasEntrega&&<span>🚚 Entrega en {pv.diasEntrega} días</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== FRUTAS ===== */}
+      {tab==="frutas"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>🍓 Control de Frutas</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Estado, cantidad y precio del día</div>
+            </div>
+            <div style={{display:"flex",gap:"6px"}}>
+              <button onClick={()=>{setCantRecepcionFrutas({});setBusqRecepcionFrutas("");setModalRecepcionFrutas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px"}}>📦 Recibir</button>
+              <button onClick={cerrarDiaFrutas} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+            </div>
+          </div>
+
+          <div style={{display:"grid",gap:"8px"}}> 
+            {frutas.map(f=>{
+              const diasDesdeCompra = f.fechaCompra ? Math.floor((new Date()-new Date(f.fechaCompra))/86400000) : null;
+              const estadoColor = f.estado==="Fresca"?C.success:f.estado==="Regular"?C.warn:C.danger;
+              const minimoActivo = esFindeSemana() && f.minimoFS > 0 ? f.minimoFS : f.minimo;
+              const bajoStock = f.cantidad <= minimoActivo;
+              return(
+                <div key={f.id} style={{background:C.card,border:`1px solid ${bajoStock?estadoColor+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <span style={{fontSize:"24px"}}>{f.emoji}</span>
+                    <div style={{flex:1,minWidth:"120px"}}>
+                      <div style={{fontWeight:"700",fontSize:"14px"}}>{f.nombre}</div>
+                      <div style={{display:"flex",gap:"6px",marginTop:"4px",flexWrap:"wrap"}}>
+                        {["Fresca","Regular","Por usar"].map(e=>(
+                          <button key={e} onClick={async()=>{setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,estado:e}:x));await supabase.from("frutas_estado").update({estado:e,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{padding:"2px 8px",borderRadius:"6px",border:"none",cursor:"pointer",fontSize:"10px",fontWeight:"600",fontFamily:"inherit",background:f.estado===e?(e==="Fresca"?"#22c55e30":e==="Regular"?"#f59e0b30":"#ef444430"):"#ffffff10",color:f.estado===e?(e==="Fresca"?C.success:e==="Regular"?C.warn:C.danger):C.muted}}>{e}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>CANTIDAD</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <button onClick={async()=>{const nv=Math.max(0,Math.round((f.cantidad-0.5)*10)/10);setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:nv}:x));await supabase.from("frutas_estado").update({cantidad:nv,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>−</button>
+                        <div style={{background:bajoStock?"#f59e0b20":"#6ee7b720",border:`1px solid ${bajoStock?C.warn+"40":C.accent+"40"}`,borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:bajoStock?C.warn:C.accent,fontSize:"13px",minWidth:"64px",textAlign:"center"}}>{f.cantidad} {f.unidad}</div>
+                        <button onClick={async()=>{const nv=Math.round((f.cantidad+0.5)*10)/10;setFrutas(fr=>fr.map(x=>x.id===f.id?{...x,cantidad:nv}:x));await supabase.from("frutas_estado").update({cantidad:nv,actualizado_en:new Date().toISOString()}).eq("id",f.id);}} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"14px"}}>+</button>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center",fontSize:"10px",color:C.muted}}>
+                      {f.precio>0&&<div>💰 <span style={{color:C.accent,fontWeight:"600"}}>${f.precio}</span></div>}
+                      {diasDesdeCompra!==null&&<div>📅 {diasDesdeCompra}d</div>}
+                      {bajoStock&&<div style={{color:C.warn,fontWeight:"600"}}>⚠️ Pedir</div>}
+                    </div>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      <button onClick={()=>{setFormM({productoId:"fruta_"+f.id,cantidad:"",motivo:"Mala calidad",notas:""});setModal("merma_fruta");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>📉</button>
+                      <button onClick={()=>{setEditandoFruta(f.id);setFormFruta({...f});setModalFruta(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                    </div>
+                  </div>
+                  {f.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"8px",fontStyle:"italic",paddingLeft:"34px"}}>💬 {f.notas}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== MEZCLAS ===== */}
+      {tab==="mezclas"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>🧁 Control de Mezclas</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Sobrante del día y producción para mañana</div>
+            </div>
+            <button onClick={()=>{
+              const mañana = new Date();
+              mañana.setDate(mañana.getDate()+1);
+              const esMañanaFS = [0,5,6].includes(mañana.getDay());
+              let msg = "🧁 *CIERRE DE MEZCLAS* " + new Date().toLocaleDateString("es-MX") + "\n\n";
+              msg += "📦 *SOBRANTE HOY:*\n";
+              mezclas.forEach(m=>{
+                const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
+                const producir = Math.max(0, optimo - m.sobrante);
+                msg += `${m.emoji} ${m.nombre}: ${m.sobrante}${m.unidad||"L"} sobrante`;
+                if(producir>0) msg += ` _(producir ${producir}${m.unidad||"L"} mañana)_`;
+                if(m.notas) msg += ` 💬 ${m.notas}`;
+                msg += "\n";
+              });
+              const url = `https://wa.me/${TU_NUMERO}?text=${encodeURIComponent(msg)}`;
+              window.open(url,"_blank");
+            }} style={{...btnP,fontSize:"12px",padding:"8px 14px",background:"linear-gradient(135deg,#22c55e,#16a34a)"}}>🌙 Cerrar día</button>
+          </div>
+          <div style={{marginBottom:"14px"}}>
+            <button onClick={()=>{setCantRecepcionMezclas({});setBusqRecepcionMezclas("");setModalRecepcionMezclas(true);}} style={{...btnG,fontSize:"12px",padding:"8px 14px",width:"100%"}}>📦 Recibir producción del día</button>
+          </div>
+
+          {/* Banner de aviso */}
+          <div style={{background:"#f59e0b15",border:"1px solid #f59e0b40",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:C.warn}}>
+            ⚠️ <strong>Revisar etiquetado:</strong> Las mezclas no deben tener más de <strong>3 días</strong> de elaboradas. Verificar fecha antes de usar.
+          </div>
+
+          <div style={{display:"grid",gap:"8px"}}>
+            {mezclas.map(m=>{
+              const mañana = new Date();
+              mañana.setDate(mañana.getDate()+1);
+              const esMañanaFS = [0,5,6].includes(mañana.getDay());
+              const optimo = esMañanaFS && m.optimoFS>0 ? m.optimoFS : m.optimoSemana;
+              const producir = Math.max(0, optimo - m.sobrante);
+              const diasMezcla = m.fechaRegistro ? Math.floor((new Date()-new Date(m.fechaRegistro))/86400000) : null;
+              const vencida = diasMezcla !== null && diasMezcla >= 3;
+              return(
+                <div key={m.id} style={{background:C.card,border:`1px solid ${vencida?"#ef444440":producir>0?C.warn+"40":C.border}`,borderRadius:"12px",padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <span style={{fontSize:"24px"}}>{m.emoji}</span>
+                    <div style={{flex:1,minWidth:"120px"}}>
+                      <div style={{fontWeight:"700",fontSize:"14px"}}>{m.nombre}</div>
+                      <div style={{fontSize:"10px",color:C.muted,marginTop:"2px"}}>
+                        Óptimo: <span style={{color:C.info}}>{optimo}L</span>
+                        {diasMezcla!==null&&<span style={{color:vencida?C.danger:C.muted}}> · 📅 {diasMezcla}d {vencida?"⚠️ VENCIDA":""}</span>}
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>SOBRANTE</div>
+                      <div style={{display:"flex",alignItems:"center",gap:"4px"}}>
+                        <button onClick={async()=>{const nv=Math.max(0,m.sobrante-0.5);setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#ef444420",border:"none",color:C.danger,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>−</button>
+                        <div style={{background:"#6ee7b720",border:"1px solid #6ee7b740",borderRadius:"7px",padding:"2px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"600",color:C.accent,fontSize:"13px",minWidth:"60px",textAlign:"center"}}>{m.sobrante}{m.unidad||"L"}</div>
+                        <button onClick={async()=>{const nv=m.sobrante+0.5;setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,sobrante:nv}:x));await supabase.from("mezclas_estado").update({sobrante:nv}).eq("id",m.id);}} style={{background:"#22c55e20",border:"none",color:C.success,width:"24px",height:"24px",borderRadius:"6px",cursor:"pointer",fontSize:"13px"}}>+</button>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"center",minWidth:"80px"}}>
+                      <div style={{fontSize:"9px",color:C.muted,marginBottom:"3px"}}>PRODUCIR MAÑANA</div>
+                      <div style={{background:producir>0?"#f59e0b20":"#22c55e20",border:`1px solid ${producir>0?C.warn+"40":C.success+"40"}`,borderRadius:"7px",padding:"4px 10px",fontFamily:"'DM Mono',monospace",fontWeight:"700",color:producir>0?C.warn:C.success,fontSize:"14px",textAlign:"center"}}>
+                        {producir>0?`${producir}${m.unidad||"L"}`:"✅"}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      {tieneReceta(m.id)&&puedeProducir&&<button onClick={()=>{setModalProducir(m);setTandasProducir("1");}} style={{background:"#22c55e20",border:"none",color:C.success,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}} title="Producir (descuenta ingredientes)">🍳</button>}
+                      <button onClick={()=>{setFormM({productoId:"mezcla_"+m.id,cantidad:"",motivo:"Caducidad",notas:""});setModal("merma_mezcla");}} style={{background:"#a78bfa20",border:"none",color:"#a78bfa",padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>📉</button>
+                      <button onClick={()=>{setEditandoMezcla(m.id);setFormMezcla({...m});setModalMezcla(true);}} style={{background:"#3b82f620",border:"none",color:C.info,padding:"6px 10px",borderRadius:"8px",cursor:"pointer",fontSize:"13px"}}>✏️</button>
+                    </div>
+                  </div>
+                  <div style={{marginTop:"8px",paddingLeft:"0"}}>
+                    <input 
+                      placeholder="💬 Nota (ej: 1/2 bote, quedó espesa...)" 
+                      value={m.notas||""} 
+                      onChange={async(e)=>{
+                        const val = e.target.value;
+                        setMezclas(ms=>ms.map(x=>x.id===m.id?{...x,notas:val}:x));
+                      }}
+                      onBlur={async(e)=>{
+                        await supabase.from("mezclas_estado").update({notas:e.target.value}).eq("id",m.id);
+                      }}
+                      style={{width:"100%",background:"rgba(7,10,18,0.5)",border:"1px solid rgba(125,211,252,0.1)",borderRadius:"8px",padding:"6px 10px",color:C.muted,fontFamily:"inherit",fontSize:"11px",outline:"none",fontStyle:m.notas?"normal":"italic"}}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== MERMAS ===== */}
+      {tab==="mermas"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
+            <div>
+              <div style={{fontWeight:"700",fontSize:"15px"}}>Registro de Mermas</div>
+              <div style={{fontSize:"11px",color:C.muted,marginTop:"2px"}}>Caducidad, derrames y pérdidas</div>
+            </div>
+            <button onClick={()=>{setFormM({productoId:"",cantidad:"",motivo:"Caducidad",notas:""});setModal("merma");}} style={{...btnP,fontSize:"12px",padding:"8px 14px"}}>+ Merma</button>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:"8px",marginBottom:"14px"}}>
+            {[
+              {label:"Total mermas",value:mermas.length,color:"#a78bfa"},
+              {label:"Costo este mes",value:`$${totalMermasMes.toFixed(2)}`,color:C.danger},
+              {label:"Motivo frecuente",value:mermas.length?Object.entries(mermas.reduce((a,m)=>{a[m.motivo]=(a[m.motivo]||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1])[0][0].split("/")[0].trim():"—",color:C.warn},
+            ].map((s,i)=>(
+              <div key={i} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"10px",padding:"12px 14px"}}>
+                <div style={{fontSize:"10px",color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"5px"}}>{s.label}</div>
+                <div style={{fontSize:"18px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+          {mermas.length===0?(
+            <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
+              <div style={{fontSize:"36px",marginBottom:"10px"}}>✨</div>Sin mermas registradas
+            </div>
+          ):(
+            <div style={{display:"grid",gap:"7px"}}>
+              {mermas.map(m=>(
+                <div key={m.id} style={{background:C.card,border:"1px solid #a78bfa25",borderRadius:"11px",padding:"10px 14px",display:"flex",gap:"10px",alignItems:"flex-start"}}>
+                  <div style={{background:"#a78bfa18",borderRadius:"8px",width:"34px",height:"34px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"17px",flexShrink:0}}>📉</div>
+                  <div style={{flex:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:"4px"}}>
+                      <span style={{fontWeight:"600",fontSize:"13px"}}>{m.nombre}</span>
+                      <span style={{fontSize:"12px",color:C.danger,fontFamily:"'DM Mono',monospace"}}>−${m.costoEstimado?.toFixed(2)||"0.00"}</span>
+                    </div>
+                    <div style={{fontSize:"11px",color:C.muted,marginTop:"3px"}}>
+                      <span style={{background:"#f59e0b18",color:C.warn,borderRadius:"4px",padding:"1px 6px",fontSize:"10px",marginRight:"6px"}}>{m.motivo}</span>
+                      {m.cantidad} {m.unidad} · {m.antes}→{m.despues}
+                    </div>
+                    {m.notas&&<div style={{fontSize:"10px",color:C.muted,marginTop:"3px",fontStyle:"italic"}}>"{m.notas}"</div>}
+                    <div style={{fontSize:"10px",color:C.muted,marginTop:"3px",opacity:0.7}}>{fmt(m.fecha)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== HISTORIAL ===== */}
+      {tab==="historial"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"4px"}}>
+            <div style={{fontWeight:"700",fontSize:"15px"}}>Historial de Movimientos</div>
+          </div>
+          <div style={{display:"flex",gap:"8px",marginBottom:"14px",flexWrap:"wrap"}}>
+            <select value={filtroUsuario} onChange={e=>setFiltroUsuario(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontSize:"12px"}}>
+              <option value="Todos">👥 Todos los usuarios</option>
+              {[...new Set(historial.map(h=>h.usuario).filter(u=>u&&u!=="Desconocido"))].sort().map(u=>(
+                <option key={u} value={u}>👤 {u}</option>
+              ))}
+            </select>
+            <div style={{fontSize:"11px",color:C.muted,alignSelf:"center"}}>Entradas, consumos, mermas y ajustes</div>
+          </div>
+          {historial.length===0?(
+            <div style={{textAlign:"center",color:C.muted,padding:"50px 0"}}>
+              <div style={{fontSize:"36px",marginBottom:"10px"}}>📭</div>Sin movimientos aún
+            </div>
+          ):(
+            <div style={{display:"grid",gap:"6px"}}>
+              {historial.filter(h=>filtroUsuario==="Todos"||(h.usuario||"")=== filtroUsuario).map(h=>{
+                const t={entrada:{icon:"📥",color:C.success,bg:"#22c55e15",label:"Entrada"},consumo:{icon:"📤",color:C.info,bg:"#3b82f615",label:"Consumo"},merma:{icon:"📉",color:"#a78bfa",bg:"#a78bfa15",label:"Merma"},ajuste:{icon:"🔧",color:C.warn,bg:"#f59e0b15",label:"Ajuste"}}[h.tipo]||{icon:"📋",color:C.muted,bg:"#ffffff10",label:h.tipo};
+                return(
+                  <div key={h.id} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"9px",padding:"9px 13px",display:"flex",gap:"9px",alignItems:"center"}}>
+                    <div style={{background:t.bg,borderRadius:"6px",width:"30px",height:"30px",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"15px",flexShrink:0}}>{t.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:"12px",fontWeight:"600"}}>{h.nombre} <span style={{color:t.color,fontSize:"10px",fontWeight:"400"}}>· {t.label}</span></div>
+                      <div style={{fontSize:"10px",color:C.muted,fontFamily:"'DM Mono',monospace"}}>{h.antes}→{h.despues} {h.unidad}{h.usuario&&h.usuario!=="Desconocido"&&<span style={{color:"#a78bfa"}}> · 👤{h.usuario}</span>}</div>
+                    </div>
+                    <div style={{fontSize:"9px",color:C.muted,textAlign:"right"}}>{fmt(h.fecha)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== REPORTES ===== */}
+      {tab==="reportes"&&(
+        <div style={{padding:"0 16px 24px"}}>
+          <div style={{fontWeight:"700",fontSize:"15px",marginBottom:"14px"}}>📊 Dashboard</div>
+
+          {/* === ESTADO DEL STOCK === */}
+          {(()=>{
+            const agotado = productos.filter(p=>p.cantidad===0).length;
+            const bajo = productos.filter(p=>p.cantidad>0&&p.cantidad<=getMinimoActivo(p)).length;
+            const ok = productos.filter(p=>p.cantidad>getMinimoActivo(p)&&p.cantidad<=p.optimo).length;
+            const optimo = productos.filter(p=>p.optimo>0&&p.cantidad>p.optimo).length;
+            const total = productos.length;
+            const barW = (n) => total>0?`${Math.round(n/total*100)}%`:"0%";
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>🚦 Estado del stock</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px",marginBottom:"12px"}}>
+                  {[{label:"Agotado",val:agotado,color:C.danger},{label:"Stock bajo",val:bajo,color:C.warn},{label:"OK",val:ok,color:C.info},{label:"Sobre óptimo",val:optimo,color:C.success}].map(s=>(
+                    <div key={s.label} style={{background:"#12151e",borderRadius:"8px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"8px"}}>
+                      <div style={{width:"8px",height:"8px",borderRadius:"50%",background:s.color,flexShrink:0}}/>
+                      <div>
+                        <div style={{fontSize:"18px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>{s.val}</div>
+                        <div style={{fontSize:"10px",color:C.muted}}>{s.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{height:"12px",borderRadius:"6px",overflow:"hidden",display:"flex",gap:"2px"}}>
+                  {agotado>0&&<div style={{width:barW(agotado),background:C.danger,borderRadius:"4px"}}/>}
+                  {bajo>0&&<div style={{width:barW(bajo),background:C.warn,borderRadius:"4px"}}/>}
+                  {ok>0&&<div style={{width:barW(ok),background:C.info,borderRadius:"4px"}}/>}
+                  {optimo>0&&<div style={{width:barW(optimo),background:C.success,borderRadius:"4px"}}/>}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* === PROYECCIÓN DE DURACIÓN === */}
+          {(()=>{
+            const ahora = new Date();
+            const hace7 = new Date(ahora - 7*24*60*60*1000);
+            const consumos7d = historial.filter(h=>h.tipo==="consumo"&&new Date(h.fecha)>=hace7);
+            const consumoPorProducto = {};
+            consumos7d.forEach(h=>{
+              if(!consumoPorProducto[h.nombre]) consumoPorProducto[h.nombre]=0;
+              consumoPorProducto[h.nombre]+=h.cantidad;
+            });
+            const proyecciones = productos
+              .filter(p=>p.cantidad>0&&consumoPorProducto[p.nombre]>0)
+              .map(p=>{
+                const consumoDiario = consumoPorProducto[p.nombre]/7;
+                const diasRestantes = Math.floor(p.cantidad/consumoDiario);
+                return {...p, consumoDiario, diasRestantes};
+              })
+              .sort((a,b)=>a.diasRestantes-b.diasRestantes)
+              .slice(0,10);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"4px"}}>⏱️ Proyección de duración</div>
+                <div style={{fontSize:"10px",color:C.muted,marginBottom:"12px"}}>Basado en consumo de los últimos 7 días</div>
+                {proyecciones.length===0?(
+                  <div style={{fontSize:"12px",color:C.muted}}>Sin suficiente historial de consumo aún</div>
+                ):proyecciones.map(p=>(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <div style={{display:"flex",gap:"8px",alignItems:"center"}}>
+                      <span style={{fontSize:"16px"}}>{p.emoji}</span>
+                      <div>
+                        <div style={{fontSize:"12px",fontWeight:"600"}}>{p.nombre}</div>
+                        <div style={{fontSize:"10px",color:C.muted}}>{p.cantidad} {p.unidad} · -{p.consumoDiario.toFixed(1)}/día</div>
+                      </div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:"13px",fontWeight:"700",color:p.diasRestantes<=3?C.danger:p.diasRestantes<=7?C.warn:C.success,fontFamily:"'DM Mono',monospace"}}>{p.diasRestantes}d</div>
+                      <div style={{fontSize:"9px",color:C.muted}}>{p.diasRestantes<=3?"🚨 Urgente":p.diasRestantes<=7?"⚠️ Pronto":"✅ OK"}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* === TOP 10 PRODUCTOS MÁS MOVIDOS === */}
+          {(()=>{
+            const movimientos = historial.filter(h=>h.tipo==="consumo"||h.tipo==="entrada");
+            const conteo = {};
+            movimientos.forEach(h=>{
+              if(!conteo[h.nombre]) conteo[h.nombre]={nombre:h.nombre,movimientos:0,entradas:0,salidas:0};
+              conteo[h.nombre].movimientos++;
+              if(h.tipo==="entrada") conteo[h.nombre].entradas++;
+              if(h.tipo==="consumo") conteo[h.nombre].salidas++;
+            });
+            const top10 = Object.values(conteo).sort((a,b)=>b.movimientos-a.movimientos).slice(0,10);
+            const maxMov = top10[0]?.movimientos||1;
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>🔥 Top 10 productos más movidos</div>
+                {top10.length===0?(
+                  <div style={{fontSize:"12px",color:C.muted}}>Sin movimientos registrados aún</div>
+                ):top10.map((p,i)=>(
+                  <div key={p.nombre} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"3px"}}>
+                      <span style={{fontSize:"12px",fontWeight:"600"}}><span style={{color:C.accent,fontFamily:"'DM Mono',monospace",marginRight:"6px"}}>#{i+1}</span>{p.nombre}</span>
+                      <span style={{fontSize:"11px",color:C.muted,fontFamily:"'DM Mono',monospace"}}>{p.movimientos} movs</span>
+                    </div>
+                    <div style={{height:"6px",background:"#12151e",borderRadius:"3px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.round(p.movimientos/maxMov*100)}%`,background:`linear-gradient(90deg,#6ee7b7,#3b82f6)`,borderRadius:"3px"}}/>
+                    </div>
+                    <div style={{display:"flex",gap:"10px",marginTop:"2px"}}>
+                      <span style={{fontSize:"9px",color:C.success}}>📥 {p.entradas} entradas</span>
+                      <span style={{fontSize:"9px",color:C.info}}>📤 {p.salidas} salidas</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* === MERMAS POR SEMANA === */}
+          {(()=>{
+            const semanas = [];
+            for(let i=3;i>=0;i--){
+              const inicio = new Date(); inicio.setDate(inicio.getDate()-((i+1)*7));
+              const fin = new Date(); fin.setDate(fin.getDate()-(i*7));
+              const label = i===0?"Esta semana":i===1?"Sem -1":i===2?"Sem -2":"Sem -3";
+              const items = mermas.filter(m=>{const f=new Date(m.fecha);return f>=inicio&&f<fin;});
+              const costo = items.reduce((a,m)=>a+(m.costoEstimado||0),0);
+              semanas.push({label,costo,count:items.length});
+            }
+            const maxCosto = Math.max(...semanas.map(s=>s.costo),1);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>📉 Mermas por semana</div>
+                <div style={{display:"flex",gap:"8px",alignItems:"flex-end",height:"80px",marginBottom:"8px"}}>
+                  {semanas.map((s,i)=>(
+                    <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"4px",height:"100%",justifyContent:"flex-end"}}>
+                      <div style={{fontSize:"9px",color:C.danger,fontFamily:"'DM Mono',monospace"}}>${s.costo.toFixed(0)}</div>
+                      <div style={{width:"100%",background:s.costo>0?"linear-gradient(180deg,#ef4444,#a78bfa)":"#2a2d3a",borderRadius:"4px 4px 0 0",height:`${Math.max(s.costo/maxCosto*60,s.costo>0?4:0)}px`,minHeight:s.costo>0?"4px":"0"}}/>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:"8px"}}>
+                  {semanas.map((s,i)=>(
+                    <div key={i} style={{flex:1,textAlign:"center"}}>
+                      <div style={{fontSize:"9px",color:C.muted}}>{s.label}</div>
+                      <div style={{fontSize:"9px",color:"#a78bfa"}}>{s.count} mermas</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* === GASTO ESTIMADO VS MERMAS MES === */}
+          {(()=>{
+            const mermasMes = mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).reduce((a,m)=>a+(m.costoEstimado||0),0);
+            const pedidoMes = gastoEstimado;
+            const max = Math.max(mermasMes, pedidoMes, 1);
+            return(
+              <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+                <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"12px"}}>💰 Este mes</div>
+                {[{label:"Gasto estimado pedido",val:pedidoMes,color:C.info},{label:"Pérdida por mermas",val:mermasMes,color:C.danger}].map(s=>(
+                  <div key={s.label} style={{marginBottom:"10px"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                      <span style={{fontSize:"12px"}}>{s.label}</span>
+                      <span style={{fontSize:"12px",fontWeight:"700",color:s.color,fontFamily:"'DM Mono',monospace"}}>${s.val.toFixed(2)}</span>
+                    </div>
+                    <div style={{height:"8px",background:"#12151e",borderRadius:"4px",overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.round(s.val/max*100)}%`,background:s.color,borderRadius:"4px",opacity:0.8}}/>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* === PRÓXIMOS A CADUCAR === */}
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+            <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px"}}>📅 Próximos a caducar</div>
+            {productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=14;}).length===0
+              ?<div style={{fontSize:"12px",color:C.muted}}>✅ Sin productos próximos a caducar</div>
+              :productos.filter(p=>{const d=diasParaCaducar(p.caducidad);return d!==null&&d<=14;}).sort((a,b)=>diasParaCaducar(a.caducidad)-diasParaCaducar(b.caducidad)).map(p=>{
+                const d=diasParaCaducar(p.caducidad);
+                return(
+                  <div key={p.id} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <span style={{fontSize:"12px"}}>{p.emoji} {p.nombre}</span>
+                    <span style={{fontSize:"12px",fontWeight:"700",color:d<=3?C.danger:d<=7?C.warn:"#a78bfa"}}>{d===0?"¡Hoy!":d<0?"Vencido":d+" días"}</span>
+                  </div>
+                );
+              })
+            }
+          </div>
+
+          {/* === MERMAS POR MOTIVO === */}
+          <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:"12px",padding:"14px",marginBottom:"12px"}}>
+            <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"10px"}}>📉 Mermas por motivo (mes actual)</div>
+            {MOTIVOS_MERMA.map(motivo=>{
+              const items=mermas.filter(m=>m.motivo===motivo&&new Date(m.fecha).getMonth()===new Date().getMonth());
+              if(!items.length)return null;
+              const costo=items.reduce((a,m)=>a+(m.costoEstimado||0),0);
+              return(
+                <div key={motivo} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                  <span style={{fontSize:"12px"}}>{motivo}</span>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{fontSize:"11px",color:"#a78bfa",fontFamily:"'DM Mono',monospace"}}>{items.length}x · </span>
+                    <span style={{fontSize:"11px",color:C.danger,fontFamily:"'DM Mono',monospace"}}>${costo.toFixed(2)}</span>
+                  </div>
+                </div>
+              );
+            })}
+            {mermas.filter(m=>new Date(m.fecha).getMonth()===new Date().getMonth()).length===0&&<div style={{fontSize:"12px",color:C.muted}}>Sin mermas este mes</div>}
+          </div>
+
+          <div style={{background:"linear-gradient(135deg,#6ee7b710,#3b82f610)",border:`1px solid ${C.accent}30`,borderRadius:"12px",padding:"16px",textAlign:"center"}}>
+            <div style={{fontSize:"26px",marginBottom:"6px"}}>📤</div>
+            <div style={{fontWeight:"700",fontSize:"13px",marginBottom:"5px"}}>Exportar para análisis con Claude</div>
+            <div style={{fontSize:"11px",color:C.muted,marginBottom:"12px"}}>Copia tu reporte y pídeme gráficas, tendencias y recomendaciones</div>
+            <button onClick={()=>setModal("exportar")} style={{...btnP}}>Generar reporte completo</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODALES ===== */}
+      {modal&&(
+        <div onClick={()=>modal!=="scanner"&&setModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,5,15,0.85)",backdropFilter:"blur(8px)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"rgba(8,12,22,0.95)",border:"1px solid rgba(125,211,252,0.2)",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto",backdropFilter:"blur(20px)",boxShadow:"0 0 40px rgba(125,211,252,0.1)"}}>
+
+            {/* Producto */}
+            {modal==="producto"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:C.accent}}>{editando?"✏️ Editar producto":"➕ Nuevo producto"}</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div style={{display:"grid",gridTemplateColumns:"56px 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Emoji</label><input value={formP.emoji} onChange={e=>setFormP(f=>({...f,emoji:e.target.value}))} style={{...inp,textAlign:"center",fontSize:"20px"}} maxLength={2}/></div>
+                  <div><label style={lbl}>Nombre *</label><input placeholder="Ej. Café molido" value={formP.nombre} onChange={e=>setFormP(f=>({...f,nombre:e.target.value}))} style={inp}/></div>
+                </div>
+                <div><label style={lbl}>Código de barras</label><input placeholder="Ej. 7501022014554" value={formP.barcode} onChange={e=>setFormP(f=>({...f,barcode:e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Categoría</label><select value={formP.categoria} onChange={e=>setFormP(f=>({...f,categoria:e.target.value}))} style={{...inp,cursor:"pointer"}}>{CATEGORIAS.map(c=><option key={c}>{c}</option>)}</select></div>
+                <div><label style={lbl}>Proveedor</label><input placeholder="Ej. Distribuidora Norte" value={formP.proveedor} onChange={e=>setFormP(f=>({...f,proveedor:e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Ubicación en anaquel</label><input placeholder="Ej. Anaquel A - Estante 2" value={formP.ubicacion} onChange={e=>setFormP(f=>({...f,ubicacion:e.target.value}))} style={inp}/></div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Cantidad actual *</label><input type="number" min="0" placeholder="0" value={formP.cantidad} onChange={e=>setFormP(f=>({...f,cantidad:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Unidad</label><select value={formP.unidad} onChange={e=>setFormP(f=>({...f,unidad:e.target.value}))} style={{...inp,cursor:"pointer"}}>{UNIDADES.map(u=><option key={u}>{u}</option>)}</select></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Mínimo semana</label><input type="number" min="0" placeholder="0" value={formP.minimo} onChange={e=>setFormP(f=>({...f,minimo:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Mínimo fin de semana</label><input type="number" min="0" placeholder="0" value={formP.minimoFS||""} onChange={e=>setFormP(f=>({...f,minimoFS:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Óptimo</label><input type="number" min="0" placeholder="0" value={formP.optimo} onChange={e=>setFormP(f=>({...f,optimo:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Máximo</label><input type="number" min="0" placeholder="0" value={formP.maximo} onChange={e=>setFormP(f=>({...f,maximo:e.target.value}))} style={inp}/></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Costo por unidad ($)</label><input type="number" min="0" placeholder="0.00" value={formP.costo} onChange={e=>setFormP(f=>({...f,costo:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Fecha de caducidad</label><input type="date" value={formP.caducidad} onChange={e=>setFormP(f=>({...f,caducidad:e.target.value}))} style={inp}/></div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Presentación de venta</label><input placeholder="Ej. paquete de 6 L" value={formP.presentacion||""} onChange={e=>setFormP(f=>({...f,presentacion:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Costo por presentación ($)</label><input type="number" min="0" placeholder="0.00" value={formP.costoPresentacion||""} onChange={e=>setFormP(f=>({...f,costoPresentacion:e.target.value}))} style={inp}/></div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:"8px"}}>
+                  <input type="checkbox" id="esVar" checked={formP.esVariable||false} onChange={e=>setFormP(f=>({...f,esVariable:e.target.checked}))} style={{width:"16px",height:"16px",accentColor:C.accent}}/>
+                  <label htmlFor="esVar" style={{fontSize:"12px",color:C.muted,cursor:"pointer"}}>Producto variable (fruta, temporada) — mínimos ajustables</label>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={guardarProducto} style={{...btnP,flex:2}}>{editando?"Guardar cambios":"Agregar producto"}</button>
+              </div>
+            </>}
+
+            {/* Merma */}
+            {modal==="merma"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#a78bfa"}}>📉 Registrar Merma</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div><label style={lbl}>Producto *</label>
+                  <select value={formM.productoId} onChange={e=>setFormM(f=>({...f,productoId:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+                    <option value="">Selecciona...</option>
+                    {productos.map(p=><option key={p.id} value={p.id}>{p.emoji} {p.nombre} ({p.cantidad} {p.unidad})</option>)}
+                  </select>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Cantidad perdida *</label><input type="number" min="0" placeholder="0" value={formM.cantidad} onChange={e=>setFormM(f=>({...f,cantidad:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Motivo</label><select value={formM.motivo} onChange={e=>setFormM(f=>({...f,motivo:e.target.value}))} style={{...inp,cursor:"pointer"}}>{MOTIVOS_MERMA.map(m=><option key={m}>{m}</option>)}</select></div>
+                </div>
+                <div><label style={lbl}>Notas</label><input placeholder="Ej. Se cayó la jarra..." value={formM.notas} onChange={e=>setFormM(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+                {formM.productoId&&formM.cantidad&&(
+                  <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:"8px",padding:"9px 12px",fontSize:"11px",color:C.danger}}>
+                    ⚠️ Se reducirán <strong>{formM.cantidad} {productos.find(p=>p.id===+formM.productoId)?.unidad}</strong> del inventario
+                    {productos.find(p=>p.id===+formM.productoId)?.costo>0&&<span> · Costo: <strong>${(+formM.cantidad*(productos.find(p=>p.id===+formM.productoId)?.costo||0)).toFixed(2)}</strong></span>}
+                  </div>
+                )}
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={registrarMerma} style={{...btnP,flex:2,background:"linear-gradient(135deg,#a78bfa,#ec4899)"}}>Registrar</button>
+              </div>
+            </>}
+
+            {/* Ajuste */}
+            {modal==="ajuste"&&ajusteItem&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px",color:C.warn}}>🔧 Ajuste manual</div>
+              <div style={{fontSize:"11px",color:C.muted,marginBottom:"16px"}}>{ajusteItem.nombre} — cantidad exacta actual</div>
+              {esGranel(ajusteItem)?(
+                <>
+                  <div style={{display:"flex",gap:"10px",alignItems:"stretch"}}>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>{ajusteItem.unidad==="L"?"Litros":"Kilos"}</label>
+                      <div style={{position:"relative"}}>
+                        <input type="number" min="0" inputMode="numeric" value={ajusteEnteroGranel} onChange={e=>setAjusteEnteroGranel(e.target.value)} style={{...inp,fontSize:"22px",textAlign:"center",fontFamily:"'DM Mono',monospace",paddingRight:"34px"}} autoFocus/>
+                        <span style={{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",fontSize:"12px",color:C.muted,pointerEvents:"none"}}>{ajusteItem.unidad}</span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"flex-end",paddingBottom:"10px",fontSize:"20px",color:C.muted}}>+</div>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>{ajusteItem.unidad==="L"?"Mililitros":"Gramos"}</label>
+                      <div style={{position:"relative"}}>
+                        <input type="number" min="0" max="999" inputMode="numeric" value={ajusteFraccionGranel} onChange={e=>setAjusteFraccionGranel(e.target.value)} style={{...inp,fontSize:"22px",textAlign:"center",fontFamily:"'DM Mono',monospace",paddingRight:"40px"}}/>
+                        <span style={{position:"absolute",right:"12px",top:"50%",transform:"translateY(-50%)",fontSize:"12px",color:C.muted,pointerEvents:"none"}}>{unidadFraccion(ajusteItem.unidad)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{marginTop:"12px",background:"#22c55e10",border:"1px solid #22c55e30",borderRadius:"10px",padding:"10px 14px",textAlign:"center"}}>
+                    <div style={{fontSize:"10px",color:C.success,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"3px"}}>Quedará en</div>
+                    <div style={{fontSize:"18px",fontWeight:"700",color:C.success,fontFamily:"'DM Mono',monospace"}}>{partesADecimal(ajusteEnteroGranel,ajusteFraccionGranel)} {ajusteItem.unidad} <span style={{fontSize:"12px",color:C.muted}}>({fmtGranel(partesADecimal(ajusteEnteroGranel,ajusteFraccionGranel),ajusteItem.unidad)})</span></div>
+                  </div>
+                </>
+              ):(
+                <input type="number" min="0" value={ajusteDelta} onChange={e=>setAjusteDelta(e.target.value)} style={{...inp,fontSize:"24px",textAlign:"center",fontFamily:"'DM Mono',monospace"}} autoFocus/>
+              )}
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={ajusteManual} style={{...btnP,flex:2}}>Aplicar</button>
+              </div>
+            </>}
+
+            {/* Proveedor */}
+            {modal==="proveedor"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:C.info}}>📋 Nuevo Proveedor</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div><label style={lbl}>Nombre del proveedor *</label><input placeholder="Ej. Café Origen MX" value={formProv.nombre} onChange={e=>setFormProv(f=>({...f,nombre:e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Contacto</label><input placeholder="Ej. Juan García" value={formProv.contacto} onChange={e=>setFormProv(f=>({...f,contacto:e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Teléfono / WhatsApp</label><input placeholder="Ej. 555-123-4567" value={formProv.telefono} onChange={e=>setFormProv(f=>({...f,telefono:e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Días de entrega</label><input type="number" min="0" placeholder="Ej. 2" value={formProv.diasEntrega} onChange={e=>setFormProv(f=>({...f,diasEntrega:e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={guardarProveedor} style={{...btnP,flex:2}}>Guardar proveedor</button>
+              </div>
+            </>}
+
+            {/* Exportar */}
+            {modal==="exportar"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px",color:C.accent}}>📤 Exportar para Claude</div>
+              <div style={{fontSize:"11px",color:C.muted,marginBottom:"14px"}}>Copia y pega en el chat para pedir análisis, gráficas y recomendaciones</div>
+              <textarea readOnly value={generarExport()} style={{...inp,height:"200px",fontFamily:"'DM Mono',monospace",fontSize:"9px",resize:"none",color:C.muted}}/>
+              <div style={{display:"flex",gap:"8px",marginTop:"12px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cerrar</button>
+                <button onClick={copiarExport} style={{...btnP,flex:2,background:copiado?"linear-gradient(135deg,#22c55e,#16a34a)":undefined,transition:"background 0.3s"}}>
+                  {copiado?"✅ ¡Copiado!":"📋 Copiar todo"}
+                </button>
+              </div>
+            </>}
+
+            {/* Merma Fruta */}
+            {modal==="merma_fruta"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#a78bfa"}}>📉 Merma de Fruta</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div><label style={lbl}>Fruta</label>
+                  <select value={formM.productoId} onChange={e=>setFormM(f=>({...f,productoId:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+                    <option value="">Selecciona...</option>
+                    {frutas.map(f=><option key={f.id} value={"fruta_"+f.id}>{f.emoji} {f.nombre} ({f.cantidad} {f.unidad})</option>)}
+                  </select>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Cantidad perdida *</label><input type="number" min="0" placeholder="0" value={formM.cantidad} onChange={e=>setFormM(f=>({...f,cantidad:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Motivo</label><select value={formM.motivo} onChange={e=>setFormM(f=>({...f,motivo:e.target.value}))} style={{...inp,cursor:"pointer"}}>{MOTIVOS_MERMA.map(m=><option key={m}>{m}</option>)}</select></div>
+                </div>
+                <div><label style={lbl}>Notas</label><input placeholder="Ej. Se pudrió..." value={formM.notas} onChange={e=>setFormM(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={()=>{
+                  const id = +formM.productoId.replace("fruta_","");
+                  const fruta = frutas.find(f=>f.id===id);
+                  if(!fruta||!formM.cantidad) return;
+                  const nuevaCant = Math.max(0, fruta.cantidad - +formM.cantidad);
+                  setFrutas(fr=>fr.map(f=>f.id===id?{...f,cantidad:nuevaCant}:f));
+                  const merma = {id:Date.now(),productoId:"fruta_"+id,nombre:fruta.nombre+" (Fruta)",unidad:fruta.unidad,cantidad:+formM.cantidad,motivo:formM.motivo,notas:formM.notas,costoEstimado:fruta.precio*+formM.cantidad,antes:fruta.cantidad,despues:nuevaCant,fecha:new Date().toISOString()};
+                  setMermas(m=>[merma,...m].slice(0,300));
+                  setFormM({productoId:"",cantidad:"",motivo:"Mala calidad",notas:""});
+                  setModal(null);
+                }} style={{...btnP,flex:2,background:"linear-gradient(135deg,#a78bfa,#ec4899)"}}>Registrar merma</button>
+              </div>
+            </>}
+
+            {/* Merma Mezcla */}
+            {modal==="merma_mezcla"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#a78bfa"}}>📉 Merma de Mezcla</div>
+              <div style={{display:"grid",gap:"12px"}}>
+                <div><label style={lbl}>Mezcla</label>
+                  <select value={formM.productoId} onChange={e=>setFormM(f=>({...f,productoId:e.target.value}))} style={{...inp,cursor:"pointer"}}>
+                    <option value="">Selecciona...</option>
+                    {mezclas.map(m=><option key={m.id} value={"mezcla_"+m.id}>{m.emoji} {m.nombre} ({m.sobrante}L)</option>)}
+                  </select>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <div><label style={lbl}>Cantidad perdida (L)*</label><input type="number" min="0" step="0.5" placeholder="0" value={formM.cantidad} onChange={e=>setFormM(f=>({...f,cantidad:e.target.value}))} style={inp}/></div>
+                  <div><label style={lbl}>Motivo</label><select value={formM.motivo} onChange={e=>setFormM(f=>({...f,motivo:e.target.value}))} style={{...inp,cursor:"pointer"}}>{MOTIVOS_MERMA.map(m=><option key={m}>{m}</option>)}</select></div>
+                </div>
+                <div><label style={lbl}>Notas</label><input placeholder="Ej. Se venció..." value={formM.notas} onChange={e=>setFormM(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+                <button onClick={()=>setModal(null)} style={{...btnG,flex:1}}>Cancelar</button>
+                <button onClick={()=>{
+                  const id = +formM.productoId.replace("mezcla_","");
+                  const mezcla = mezclas.find(m=>m.id===id);
+                  if(!mezcla||!formM.cantidad) return;
+                  const nuevaSob = Math.max(0, mezcla.sobrante - +formM.cantidad);
+                  setMezclas(ms=>ms.map(m=>m.id===id?{...m,sobrante:nuevaSob}:m));
+                  const merma = {id:Date.now(),productoId:"mezcla_"+id,nombre:mezcla.nombre+" (Mezcla)",unidad:"L",cantidad:+formM.cantidad,motivo:formM.motivo,notas:formM.notas,costoEstimado:0,antes:mezcla.sobrante,despues:nuevaSob,fecha:new Date().toISOString()};
+                  setMermas(m=>[merma,...m].slice(0,300));
+                  setFormM({productoId:"",cantidad:"",motivo:"Caducidad",notas:""});
+                  setModal(null);
+                }} style={{...btnP,flex:2,background:"linear-gradient(135deg,#a78bfa,#ec4899)"}}>Registrar merma</button>
+              </div>
+            </>}
+
+            {/* Recepcion */}
+            {modal==="recepcion"&&<>
+            </>}
+
+          {/* Scanner */}
+            {modal==="scanner"&&<>
+              <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"8px",color:C.accent}}>📷 Escanear código de barras</div>
+              <div style={{fontSize:"11px",color:C.muted,marginBottom:"12px"}}>Apunta la cámara al código de barras del producto</div>
+              <div style={{borderRadius:"10px",overflow:"hidden",background:"#000",marginBottom:"12px",position:"relative"}}>
+                <video ref={videoRef} style={{width:"100%",display:"block"}} playsInline muted/>
+                <div style={{position:"absolute",inset:0,border:"2px solid #6ee7b760",borderRadius:"10px",pointerEvents:"none"}}/>
+              </div>
+              <div style={{fontSize:"11px",color:C.muted,textAlign:"center",marginBottom:"12px"}}>
+                💡 Ingresa el código manualmente al editar el producto si la cámara no funciona
+              </div>
+              <button onClick={cerrarScanner} style={{...btnG,width:"100%"}}>Cerrar cámara</button>
+            </>}
+
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL USUARIO ===== */}
+      {modalUsuario&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"24px",width:"100%",maxWidth:"360px",textAlign:"center"}}>
+            <div style={{fontSize:"32px",marginBottom:"10px"}}>🔐</div>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"6px"}}>Identificarse</div>
+            <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"18px"}}>Selecciona tu nombre e ingresa tu PIN</div>
+            
+            <select 
+              value={nombreSeleccionado}
+              onChange={e=>{setNombreSeleccionado(e.target.value);setPinUsuario("");setErrorLogin("");}}
+              style={{width:"100%",background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"12px 14px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",marginBottom:"10px",boxSizing:"border-box",cursor:"pointer"}}
+            >
+              <option value="">Selecciona tu nombre...</option>
+              {usuarios.map(u=><option key={u.id} value={u.nombre}>{u.nombre}</option>)}
+            </select>
+
+            {nombreSeleccionado&&(
+              <input 
+                type="password"
+                placeholder="Tu PIN..."
+                value={pinUsuario}
+                onChange={e=>{setPinUsuario(e.target.value);setErrorLogin("");}}
+                onKeyDown={e=>{
+                  if(e.key==="Enter"){
+                    const u = usuarios.find(x=>x.nombre===nombreSeleccionado);
+                    if(u&&u.pin===pinUsuario){
+                      localStorage.setItem("cafeteria_usuario",nombreSeleccionado);
+                      setUsuario(nombreSeleccionado);
+                      setModalUsuario(false);
+                      setPinUsuario("");
+                      setNombreSeleccionado("");
+                      setErrorLogin("");
+                    } else {
+                      setErrorLogin("PIN incorrecto");
+                      setPinUsuario("");
+                    }
+                  }
+                }}
+                style={{width:"100%",background:"#12151e",border:`1px solid ${errorLogin?"#ef4444":"#2a2d3a"}`,borderRadius:"10px",padding:"12px 14px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"20px",outline:"none",textAlign:"center",letterSpacing:"8px",marginBottom:"8px",boxSizing:"border-box"}}
+                autoFocus
+              />
+            )}
+            
+            {errorLogin&&<div style={{color:"#ef4444",fontSize:"12px",marginBottom:"8px"}}>{errorLogin}</div>}
+
+            <button onClick={()=>{
+              const u = usuarios.find(x=>x.nombre===nombreSeleccionado);
+              if(!nombreSeleccionado) return;
+              if(u&&u.pin===pinUsuario){
+                localStorage.setItem("cafeteria_usuario",nombreSeleccionado);
+                setUsuario(nombreSeleccionado);
+                setModalUsuario(false);
+                setPinUsuario("");
+                setNombreSeleccionado("");
+                setErrorLogin("");
+              } else {
+                setErrorLogin("PIN incorrecto");
+                setPinUsuario("");
+              }
+            }} style={{width:"100%",background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"12px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"14px",opacity:nombreSeleccionado?1:0.5}}>Entrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL GESTIÓN USUARIOS ===== */}
+      {modalGestionUsuarios&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>👥 Gestión de Usuarios</div>
+            
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {usuarios.map(u=>(
+                <div key={u.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:editandoPin===u.id?"8px":"0"}}>
+                    <div>
+                      <div style={{fontSize:"13px",fontWeight:"600"}}>{u.nombre}</div>
+                      <div style={{fontSize:"10px",color:"#8b90a0",display:"flex",alignItems:"center",gap:"6px"}}>
+                        <span>PIN: {mostrandoPin[u.id] ? u.pin : "•".repeat(u.pin.length)}</span>
+                        <button onClick={()=>setMostrandoPin(m=>({...m,[u.id]:!m[u.id]}))} style={{background:"none",border:"none",color:"#7dd3fc",cursor:"pointer",fontSize:"10px",padding:"0"}}>{mostrandoPin[u.id]?"🙈":"👁️"}</button>
+                        <span>· {u.rol==="admin"?"👑 Admin":u.rol==="gerente"?"🏆 Gerente":u.rol==="subgerente"?"⭐ Subgerente":"👤 Trabajador"}</span>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:"4px"}}>
+                      <button onClick={()=>{setEditandoPin(editandoPin===u.id?null:u.id);setNuevoPinInput("");}} style={{background:"#7dd3fc20",border:"none",color:"#7dd3fc",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"11px"}}>🔑 PIN</button>
+                      {u.rol!=="admin"&&(
+                        <button onClick={async()=>{
+                          await supabase.from("usuarios").update({activo:false}).eq("id",u.id);
+                          setUsuarios(us=>us.filter(x=>x.id!==u.id));
+                        }} style={{background:"#ef444420",border:"none",color:"#ef4444",padding:"5px 10px",borderRadius:"7px",cursor:"pointer",fontSize:"12px"}}>🗑️</button>
+                      )}
+                    </div>
+                  </div>
+                  {editandoPin===u.id&&(
+                    <div style={{display:"flex",gap:"6px"}}>
+                      <input type="password" placeholder="Nuevo PIN..." value={nuevoPinInput} onChange={e=>setNuevoPinInput(e.target.value)} style={{flex:1,background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"8px 12px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",letterSpacing:"4px"}}/>
+                      <button onClick={async()=>{
+                        if(!nuevoPinInput) return;
+                        await supabase.from("usuarios").update({pin:nuevoPinInput}).eq("id",u.id);
+                        setUsuarios(us=>us.map(x=>x.id===u.id?{...x,pin:nuevoPinInput}:x));
+                        setEditandoPin(null);
+                        setNuevoPinInput("");
+                      }} style={{background:"linear-gradient(135deg,#7dd3fc,#818cf8)",border:"none",color:"#060810",padding:"8px 14px",borderRadius:"8px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"12px"}}>Cambiar</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{borderTop:"1px solid #2a2d3a",paddingTop:"14px",marginBottom:"14px"}}>
+              <div style={{fontSize:"12px",color:"#8b90a0",marginBottom:"10px",fontWeight:"600"}}>AGREGAR USUARIO</div>
+              <div style={{display:"grid",gap:"8px"}}>
+                <input placeholder="Nombre" value={formUsuario.nombre} onChange={e=>setFormUsuario(f=>({...f,nombre:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none"}}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                  <input type="password" placeholder="PIN" value={formUsuario.pin} onChange={e=>setFormUsuario(f=>({...f,pin:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",letterSpacing:"4px"}}/>
+                  <select value={formUsuario.rol} onChange={e=>setFormUsuario(f=>({...f,rol:e.target.value}))} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"14px",outline:"none",cursor:"pointer"}}>
+                    <option value="trabajador">Trabajador</option>
+                    <option value="subgerente">Subgerente</option>
+                    <option value="gerente">Gerente</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <button onClick={async()=>{
+                  if(!formUsuario.nombre||!formUsuario.pin) return;
+                  const id = Date.now();
+                  const nuevo = {id, nombre:formUsuario.nombre, pin:formUsuario.pin, rol:formUsuario.rol, activo:true};
+                  await supabase.from("usuarios").insert(nuevo);
+                  setUsuarios(us=>[...us,nuevo]);
+                  setFormUsuario({nombre:"",pin:"",rol:"trabajador"});
+                }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px"}}>+ Agregar</button>
+              </div>
+            </div>
+
+            <button onClick={()=>setModalGestionUsuarios(false)} style={{width:"100%",background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px"}}>Cerrar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION FRUTAS ===== */}
+      {modalRecepcionFrutas&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>📦 Recibir frutas</div>
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa la cantidad que llegó de cada fruta</div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input placeholder="🔍 Buscar fruta..." value={busqRecepcionFrutas} onChange={e=>setBusqRecepcionFrutas(e.target.value)} style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}/>
+              <button onClick={()=>document.getElementById("frutas-recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}}>⬇️</button>
+            </div>
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {frutas.filter(f=>!busqRecepcionFrutas||f.nombre.toLowerCase().includes(busqRecepcionFrutas.toLowerCase())).map(f=>(
+                <div key={f.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{f.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{f.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {f.cantidad} {f.unidad}</div>
+                  </div>
+                  <input type="number" min="0" step="0.5" placeholder="0" value={cantRecepcionFrutas[f.id]||""} onChange={e=>setCantRecepcionFrutas(r=>({...r,[f.id]:e.target.value}))} style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}/>
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"30px"}}>{f.unidad}</span>
+                </div>
+              ))}
+            </div>
+            {Object.values(cantRecepcionFrutas).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcionFrutas).filter(v=>v&&+v>0).length} fruta(s) por actualizar
+              </div>
+            )}
+            <div id="frutas-recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcionFrutas(false);setCantRecepcionFrutas({});setBusqRecepcionFrutas("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={confirmarRecepcionFrutas} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar recepción</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION MEZCLAS ===== */}
+      {modalRecepcionMezclas&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>📦 Recibir producción</div>
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>Ingresa cuánto se produjo de cada mezcla hoy</div>
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input placeholder="🔍 Buscar mezcla..." value={busqRecepcionMezclas} onChange={e=>setBusqRecepcionMezclas(e.target.value)} style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}/>
+              <button onClick={()=>document.getElementById("mezclas-recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}}>⬇️</button>
+            </div>
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {mezclas.filter(m=>!busqRecepcionMezclas||m.nombre.toLowerCase().includes(busqRecepcionMezclas.toLowerCase())).map(m=>(
+                <div key={m.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{m.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{m.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Sobrante actual: {m.sobrante}{m.unidad||"L"}</div>
+                  </div>
+                  <input type="number" min="0" step="0.5" placeholder="0" value={cantRecepcionMezclas[m.id]||""} onChange={e=>setCantRecepcionMezclas(r=>({...r,[m.id]:e.target.value}))} style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}/>
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"20px"}}>{m.unidad||"L"}</span>
+                </div>
+              ))}
+            </div>
+            {Object.values(cantRecepcionMezclas).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcionMezclas).filter(v=>v&&+v>0).length} mezcla(s) por actualizar
+              </div>
+            )}
+            <div id="mezclas-recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcionMezclas(false);setCantRecepcionMezclas({});setBusqRecepcionMezclas("");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={confirmarRecepcionMezclas} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>✅ Confirmar producción</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL MEZCLA ===== */}
+      {modalMezcla&&formMezcla&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>✏️ {formMezcla.nombre}</div>
+            <div style={{display:"grid",gap:"12px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:"8px"}}>
+                <div><label style={lbl}>Sobrante de hoy</label><input type="number" min="0" step="0.5" value={formMezcla.sobrante} onChange={e=>setFormMezcla(f=>({...f,sobrante:+e.target.value,fechaRegistro:new Date().toISOString()}))} style={inp}/></div>
+                <div><label style={lbl}>Unidad</label><select value={formMezcla.unidad||"L"} onChange={e=>setFormMezcla(f=>({...f,unidad:e.target.value}))} style={{...inp,width:"80px",cursor:"pointer"}}>
+                  <option value="L">L</option>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                </select></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Óptimo semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoSemana} onChange={e=>setFormMezcla(f=>({...f,optimoSemana:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Óptimo fin de semana (L)</label><input type="number" min="0" step="0.5" value={formMezcla.optimoFS} onChange={e=>setFormMezcla(f=>({...f,optimoFS:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div><label style={lbl}>Notas</label><input placeholder="Ej. Quedó muy espesa..." value={formMezcla.notas} onChange={e=>setFormMezcla(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+              <button onClick={()=>setModalMezcla(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={async()=>{
+                const fechaReg = new Date().toISOString();
+                setMezclas(ms=>ms.map(x=>x.id===editandoMezcla?{...formMezcla,fechaRegistro:fechaReg}:x));
+                await supabase.from("mezclas_estado").update({
+                  sobrante: formMezcla.sobrante||0,
+                  optimo_semana: formMezcla.optimoSemana||0,
+                  optimo_fs: formMezcla.optimoFS||0,
+                  notas: formMezcla.notas||"",
+                  fecha_registro: fechaReg,
+                  unidad: formMezcla.unidad||"L"
+                }).eq("id", editandoMezcla);
+                setModalMezcla(false);
+              }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL PRODUCIR MEZCLA ===== */}
+      {modalProducir&&puedeProducir&&RECETAS[modalProducir.id]&&(()=>{
+        const receta = RECETAS[modalProducir.id];
+        const tandas = Math.max(1, Math.floor(+tandasProducir || 1));
+        const detalle = receta.ingredientes.map(ing => {
+          const prod = productos.find(p => p.id === ing.id);
+          const necesita = Math.round(ing.cantidad * tandas * 1000) / 1000;
+          const alcanza = prod ? prod.cantidad >= necesita : false;
+          return { ing, prod, necesita, alcanza };
+        });
+        const hayProblema = detalle.some(d => !d.prod || !d.alcanza);
+        return (
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:210,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"4px",color:C.success}}>🍳 Producir {modalProducir.emoji} {modalProducir.nombre}</div>
+            <div style={{fontSize:"11px",color:C.muted,marginBottom:"16px"}}>{receta.nombre} — descuenta los ingredientes del inventario</div>
+
+            <label style={lbl}>¿Cuántas tandas?</label>
+            <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
+              <button onClick={()=>setTandasProducir(String(Math.max(1,tandas-1)))} style={{background:"#ef444420",border:"none",color:C.danger,width:"34px",height:"34px",borderRadius:"8px",cursor:"pointer",fontSize:"18px"}}>−</button>
+              <input type="number" min="1" value={tandasProducir} onChange={e=>setTandasProducir(e.target.value)} style={{...inp,textAlign:"center",fontSize:"20px",fontFamily:"'DM Mono',monospace",flex:1}}/>
+              <button onClick={()=>setTandasProducir(String(tandas+1))} style={{background:"#22c55e20",border:"none",color:C.success,width:"34px",height:"34px",borderRadius:"8px",cursor:"pointer",fontSize:"18px"}}>+</button>
+            </div>
+
+            <div style={{fontSize:"10px",color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"8px"}}>Se descontará:</div>
+            <div style={{display:"grid",gap:"7px",marginBottom:"16px"}}>
+              {detalle.map(({ing,prod,necesita,alcanza})=>(
+                <div key={ing.id} style={{background:"#12151e",border:`1px solid ${alcanza?"#2a2d3a":"#ef444450"}`,borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{prod?.emoji||"❓"}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{prod?prod.nombre:`(ID ${ing.id} no existe)`}</div>
+                    <div style={{fontSize:"10px",color:C.muted}}>Disponible: {prod?(esGranel(prod)?fmtGranel(prod.cantidad,prod.unidad):`${prod.cantidad} ${prod.unidad}`):"—"}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:"13px",fontWeight:"700",color:alcanza?C.accent:C.danger,fontFamily:"'DM Mono',monospace"}}>−{prod&&esGranel(prod)?fmtGranel(necesita,prod.unidad):`${necesita} ${prod?prod.unidad:""}`}</div>
+                    <div style={{fontSize:"9px",color:alcanza?C.success:C.danger}}>{alcanza?"✅ Alcanza":"🚫 Falta"}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hayProblema&&(
+              <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"11px",color:C.danger}}>
+                🚫 No alcanza el inventario para {tandas} tanda{tandas>1?"s":""}. Ajusta las tandas o recibe inventario primero.
+              </div>
+            )}
+
+            <div style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalProducir(null);setTandasProducir("1");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button disabled={hayProblema||produciendo} onClick={producirMezcla} style={{background:hayProblema||produciendo?"#2a2d3a":"linear-gradient(135deg,#22c55e,#16a34a)",border:"none",color:hayProblema||produciendo?"#64748b":"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:hayProblema||produciendo?"not-allowed":"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>{produciendo?"Descontando...":"🍳 Producir y descontar"}</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* ===== MODAL FRUTA ===== */}
+      {modalFruta&&formFruta&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"420px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"16px",color:"#6ee7b7"}}>✏️ Editar {formFruta.nombre}</div>
+            <div style={{display:"grid",gap:"12px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Cantidad</label><input type="number" min="0" value={formFruta.cantidad} onChange={e=>setFormFruta(f=>({...f,cantidad:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Precio del día ($)</label><input type="number" min="0" placeholder="0.00" value={formFruta.precio} onChange={e=>setFormFruta(f=>({...f,precio:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px"}}>
+                <div><label style={lbl}>Mínimo semana</label><input type="number" min="0" value={formFruta.minimo} onChange={e=>setFormFruta(f=>({...f,minimo:+e.target.value}))} style={inp}/></div>
+                <div><label style={lbl}>Mínimo fin de semana</label><input type="number" min="0" value={formFruta.minimoFS} onChange={e=>setFormFruta(f=>({...f,minimoFS:+e.target.value}))} style={inp}/></div>
+              </div>
+              <div><label style={lbl}>Fecha de compra</label><input type="date" value={formFruta.fechaCompra} onChange={e=>setFormFruta(f=>({...f,fechaCompra:e.target.value}))} style={inp}/></div>
+              <div><label style={lbl}>Notas</label><input placeholder="Ej. Llegó muy madura..." value={formFruta.notas} onChange={e=>setFormFruta(f=>({...f,notas:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{display:"flex",gap:"8px",marginTop:"16px"}}>
+              <button onClick={()=>setModalFruta(false)} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={async()=>{
+                setFrutas(fr=>fr.map(x=>x.id===editandoFruta?{...formFruta}:x));
+                await supabase.from("frutas_estado").update({
+                  cantidad: formFruta.cantidad, estado: formFruta.estado,
+                  fecha_compra: formFruta.fechaCompra||"", precio: formFruta.precio||0,
+                  minimo: formFruta.minimo||0, minimo_fs: formFruta.minimoFS||0,
+                  notas: formFruta.notas||"", actualizado_en: new Date().toISOString()
+                }).eq("id", editandoFruta);
+                setModalFruta(false);
+              }} style={{background:"linear-gradient(135deg,#6ee7b7,#3b82f6)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL RECEPCION ===== */}
+      {modalRecepcion&&(
+        <div style={{position:"fixed",inset:0,background:"#00000095",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:"16px"}}>
+          <div style={{background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"16px",padding:"20px",width:"100%",maxWidth:"480px",maxHeight:"90vh",overflowY:"auto"}}>
+            <div style={{fontWeight:"700",fontSize:"16px",marginBottom:"10px",color:"#6ee7b7"}}>{tipoRecepcion==="entrada"?"📦 Recibir pedido":"📤 Registrar salida"}</div>
+            
+            <div style={{display:"flex",gap:"6px",marginBottom:"14px",background:"#12151e",borderRadius:"10px",padding:"4px"}}>
+              <button onClick={()=>{setTipoRecepcion("entrada");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="entrada"?"linear-gradient(135deg,#6ee7b7,#3b82f6)":"transparent",color:tipoRecepcion==="entrada"?"#0f1117":"#8b90a0"}}>📦 Entrada</button>
+              <button onClick={()=>{setTipoRecepcion("salida");setCantRecepcion({});}} style={{flex:1,padding:"8px",borderRadius:"8px",border:"none",cursor:"pointer",fontFamily:"inherit",fontSize:"12px",fontWeight:"600",background:tipoRecepcion==="salida"?"linear-gradient(135deg,#f59e0b,#ef4444)":"transparent",color:tipoRecepcion==="salida"?"#0f1117":"#8b90a0"}}>📤 Salida</button>
+            </div>
+            
+            <div style={{fontSize:"11px",color:"#8b90a0",marginBottom:"14px"}}>{tipoRecepcion==="entrada"?"Ingresa la cantidad que llegó de cada producto":"Ingresa la cantidad que sale del inventario"}</div>
+            
+            <div style={{display:"flex",gap:"8px",marginBottom:"12px"}}>
+              <input 
+                placeholder="🔍 Buscar producto..." 
+                value={busqRecepcion}
+                onChange={e=>setBusqRecepcion(e.target.value)}
+                style={{flex:1,background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 13px",color:"#e8eaf0",fontFamily:"inherit",fontSize:"13px",outline:"none"}}
+              />
+              <button onClick={()=>document.getElementById("recepcion-bottom").scrollIntoView({behavior:"smooth"})} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"9px 12px",cursor:"pointer",fontSize:"16px"}} title="Ir al final">⬇️</button>
+            </div>
+
+
+            <div style={{display:"grid",gap:"8px",marginBottom:"16px"}}>
+              {productos
+                .filter(p => !busqRecepcion || p.nombre.toLowerCase().includes(busqRecepcion.toLowerCase()))
+                .map(p=>(
+                <div key={p.id} style={{background:"#12151e",border:"1px solid #2a2d3a",borderRadius:"10px",padding:"10px 12px",display:"flex",alignItems:"center",gap:"10px"}}>
+                  <span style={{fontSize:"18px"}}>{p.emoji}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:"13px",fontWeight:"600"}}>{p.nombre}</div>
+                    <div style={{fontSize:"10px",color:"#8b90a0"}}>Actual: {esGranel(p)?fmtGranel(p.cantidad,p.unidad):`${p.cantidad} ${p.unidad}`}</div>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step={esGranel(p)?"0.001":"1"}
+                    placeholder="0"
+                    value={cantRecepcion[p.id]||""}
+                    onChange={e=>setCantRecepcion(r=>({...r,[p.id]:e.target.value}))}
+                    style={{width:"70px",background:"#1a1d27",border:"1px solid #2a2d3a",borderRadius:"8px",padding:"7px 10px",color:"#e8eaf0",fontFamily:"'DM Mono',monospace",fontSize:"14px",outline:"none",textAlign:"center"}}
+                  />
+                  <span style={{fontSize:"11px",color:"#8b90a0",minWidth:"30px"}}>{p.unidad}</span>
+                </div>
+              ))}
+            </div>
+
+            {Object.values(cantRecepcion).some(v=>v&&+v>0)&&(
+              <div style={{background:"#6ee7b710",border:"1px solid #6ee7b730",borderRadius:"10px",padding:"10px 14px",marginBottom:"14px",fontSize:"12px",color:"#6ee7b7"}}>
+                ✅ {Object.values(cantRecepcion).filter(v=>v&&+v>0).length} producto(s) por actualizar
+              </div>
+            )}
+
+            <div id="recepcion-bottom" style={{display:"flex",gap:"8px"}}>
+              <button onClick={()=>{setModalRecepcion(false);setCantRecepcion({});setBusqRecepcion("");setTipoRecepcion("entrada");}} style={{background:"#1a1d27",border:"1px solid #2a2d3a",color:"#8b90a0",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontSize:"13px",flex:1}}>Cancelar</button>
+              <button onClick={tipoRecepcion==="entrada"?confirmarRecepcion:confirmarSalida} style={{background:tipoRecepcion==="entrada"?"linear-gradient(135deg,#6ee7b7,#3b82f6)":"linear-gradient(135deg,#f59e0b,#ef4444)",border:"none",color:"#0f1117",padding:"10px 18px",borderRadius:"10px",cursor:"pointer",fontFamily:"inherit",fontWeight:"700",fontSize:"13px",flex:2}}>{tipoRecepcion==="entrada"?"✅ Confirmar entrada":"📤 Confirmar salida"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
